@@ -37,7 +37,7 @@ fn header<'a, W: Write + 'a>(header: HeaderRef<'a>) -> impl SerializeFn<W> + 'a 
     tuple((string(header.name), string(": "), string(header.value)))
 }
 
-fn headers<'a, W: Write + 'a>(headers: SmallVec<[HeaderRef<'a>; 16]>) -> impl SerializeFn<W> + 'a {
+fn headers<'a, W: Write + 'a>(headers: TinyVec<[HeaderRef<'a>; 16]>) -> impl SerializeFn<W> + 'a {
     move |mut w: WriteContext<W>| {
         let headers = headers.clone();
         for h in headers {
@@ -127,7 +127,7 @@ pub(crate) fn message<'a, W: Write + 'a>(message: MessageRef<'a>) -> impl Serial
 #[cfg(test)]
 mod tests {
     use super::*;
-    use smallvec::smallvec;
+    use tinyvec::tiny_vec;
 
     #[test]
     fn test_request_line() {
@@ -188,7 +188,7 @@ mod tests {
                 method: MethodRef::Options,
                 version: Version::V2_0,
                 request_uri: Some("rtsp://media.example.com/movie/twister.3gp"),
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -200,8 +200,8 @@ mod tests {
                     HeaderRef {
                         name: "User-Agent",
                         value: "PhonyClient/1.2"
-                    },
-                ],
+                    }
+                ),
                 body: &[],
             }),
             &mut v,
@@ -226,7 +226,7 @@ User-Agent: PhonyClient/1.2\r\n\
                 method: MethodRef::Options,
                 version: Version::V2_0,
                 request_uri: None,
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -238,8 +238,8 @@ User-Agent: PhonyClient/1.2\r\n\
                     HeaderRef {
                         name: "User-Agent",
                         value: "PhonyClient/1.2"
-                    },
-                ],
+                    }
+                ),
                 body: &[],
             }),
             &mut v,
@@ -264,7 +264,7 @@ User-Agent: PhonyClient/1.2\r\n\
                 method: MethodRef::Options,
                 version: Version::V2_0,
                 request_uri: Some("rtsp://media.example.com/movie/twister.3gp"),
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -280,8 +280,8 @@ User-Agent: PhonyClient/1.2\r\n\
                     HeaderRef {
                         name: "Content-Length",
                         value: "10"
-                    },
-                ],
+                    }
+                ),
                 body: &b"0123456789"[..],
             }),
             &mut v,
@@ -308,7 +308,7 @@ Content-Length: 10\r\n\
                 method: MethodRef::Options,
                 version: Version::V2_0,
                 request_uri: None,
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -324,8 +324,8 @@ Content-Length: 10\r\n\
                     HeaderRef {
                         name: "Content-Length",
                         value: "10"
-                    },
-                ],
+                    }
+                ),
                 body: &b"0123456789"[..],
             }),
             &mut v,
@@ -351,7 +351,7 @@ Content-Length: 10\r\n\
                 version: Version::V2_0,
                 status: StatusCode::Ok,
                 reason_phrase: "All Good",
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -363,8 +363,8 @@ Content-Length: 10\r\n\
                     HeaderRef {
                         name: "User-Agent",
                         value: "PhonyClient/1.2"
-                    },
-                ],
+                    }
+                ),
                 body: &[],
             }),
             &mut v,
@@ -389,7 +389,7 @@ User-Agent: PhonyClient/1.2\r\n\
                 version: Version::V2_0,
                 status: StatusCode::Ok,
                 reason_phrase: "All Good",
-                headers: smallvec![
+                headers: tiny_vec!(
                     HeaderRef {
                         name: "CSeq",
                         value: "1"
@@ -405,8 +405,8 @@ User-Agent: PhonyClient/1.2\r\n\
                     HeaderRef {
                         name: "Content-Length",
                         value: "10"
-                    },
-                ],
+                    }
+                ),
                 body: &b"0123456789"[..],
             }),
             &mut v,

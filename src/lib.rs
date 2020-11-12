@@ -16,8 +16,8 @@ pub use headers::{HeaderName, HeaderValue, Headers};
 
 pub use url::Url;
 
-use smallvec::SmallVec;
 use std::fmt;
+use tinyvec::TinyVec;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Version {

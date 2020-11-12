@@ -2,7 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
-use super::nom_extensions::many0_smallvec;
+use super::nom_extensions::many0_tinyvec;
 use super::*;
 use nom::branch::alt;
 use nom::bytes::streaming::{tag, take, take_until, take_while, take_while_m_n};
@@ -13,8 +13,8 @@ use nom::multi::fold_many0;
 use nom::number::streaming::be_u16;
 use nom::sequence::{terminated, tuple};
 use nom::{Err, IResult, Needed};
-use smallvec::SmallVec;
 use std::str;
+use tinyvec::TinyVec;
 
 fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     fn is_token_char(i: u8) -> bool {
@@ -147,8 +147,8 @@ fn message_header(input: &[u8]) -> IResult<&[u8], HeaderRef> {
     )(input)
 }
 
-fn headers(input: &[u8]) -> IResult<&[u8], SmallVec<[HeaderRef; 16]>> {
-    terminated(many0_smallvec(message_header), crlf)(input)
+fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef; 16]>> {
+    terminated(many0_tinyvec(message_header), crlf)(input)
 }
 
 fn body(headers: &[HeaderRef]) -> impl for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
@@ -219,7 +219,7 @@ pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef> {
 mod tests {
     use super::*;
 
-    use smallvec::smallvec;
+    use tinyvec::tiny_vec;
 
     #[test]
     fn test_request_line() {
@@ -283,7 +283,7 @@ mod tests {
                     method: MethodRef::Options,
                     version: Version::V2_0,
                     request_uri: Some("rtsp://media.example.com/movie/twister.3gp"),
-                    headers: smallvec![
+                    headers: tiny_vec!(
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -295,8 +295,8 @@ mod tests {
                         HeaderRef {
                             name: "User-Agent",
                             value: "PhonyClient/1.2"
-                        },
-                    ],
+                        }
+                    ),
                     body: &[],
                 }
             ))
@@ -344,7 +344,7 @@ REMAINDER"
                     method: MethodRef::Options,
                     version: Version::V2_0,
                     request_uri: None,
-                    headers: smallvec![
+                    headers: tiny_vec!(
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -356,8 +356,8 @@ REMAINDER"
                         HeaderRef {
                             name: "User-Agent",
                             value: "PhonyClient/1.2"
-                        },
-                    ],
+                        }
+                    ),
                     body: &[],
                 }
             ))
@@ -383,7 +383,7 @@ REMAINDER"
                     method: MethodRef::Options,
                     version: Version::V2_0,
                     request_uri: Some("rtsp://media.example.com/movie/twister.3gp"),
-                    headers: smallvec![
+                    headers: tiny_vec!(
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -399,8 +399,8 @@ REMAINDER"
                         HeaderRef {
                             name: "Content-Length",
                             value: "10"
-                        },
-                    ],
+                        }
+                    ),
                     body: &b"0123456789"[..],
                 }
             ))
@@ -426,7 +426,7 @@ REMAINDER"
                     method: MethodRef::Options,
                     version: Version::V2_0,
                     request_uri: None,
-                    headers: smallvec![
+                    headers: tiny_vec![
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -442,7 +442,7 @@ REMAINDER"
                         HeaderRef {
                             name: "Content-Length",
                             value: "10"
-                        },
+                        }
                     ],
                     body: &b"0123456789"[..],
                 }
@@ -467,7 +467,7 @@ REMAINDER"
                     version: Version::V2_0,
                     status: StatusCode::Ok,
                     reason_phrase: "All Good",
-                    headers: smallvec![
+                    headers: tiny_vec![
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -479,7 +479,7 @@ REMAINDER"
                         HeaderRef {
                             name: "User-Agent",
                             value: "PhonyClient/1.2"
-                        },
+                        }
                     ],
                     body: &[],
                 }
@@ -506,7 +506,7 @@ REMAINDER"
                     version: Version::V2_0,
                     status: StatusCode::Ok,
                     reason_phrase: "All Good",
-                    headers: smallvec![
+                    headers: tiny_vec!(
                         HeaderRef {
                             name: "CSeq",
                             value: "1"
@@ -522,8 +522,8 @@ REMAINDER"
                         HeaderRef {
                             name: "Content-Length",
                             value: "10"
-                        },
-                    ],
+                        }
+                    ),
                     body: &b"0123456789"[..],
                 }
             ))

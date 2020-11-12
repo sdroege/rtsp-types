@@ -1,0 +1,14 @@
+[package]
+name = "rtsp-types"
+version = "0.0.0"
+authors = ["Sebastian Dröge <sebastian@centricular.com>"]
+edition = "2018"
+license = "MIT"
+keywords = ["rtsp", "network", "protocol", "multimedia", "streaming"]
+categories = ["network-programming", "multimedia"]
+description = "Provides the basic RTSP message types and parsers/serializers for them"
+
+[dependencies]
+nom = "6.0"
+cookie-factory = "0.3"
+smallvec = "1.0"

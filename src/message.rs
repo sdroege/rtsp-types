@@ -4,7 +4,7 @@
 
 use super::*;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Message<Body> {
     Request(Request<Body>),
     Response(Response<Body>),

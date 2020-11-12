@@ -36,7 +36,9 @@ impl<Body> Message<Body> {
 
 impl<'a, T: From<&'a [u8]> + 'a> Message<T> {
     pub fn parse<B: AsRef<[u8]> + 'a>(buf: &'a B) -> Result<(Self, usize), ParseError> {
-        MessageRef::parse(buf.as_ref()).map(|(msg, consumed)| (msg.to_owned(), consumed))
+        let (msg, consumed) = MessageRef::parse(buf.as_ref())?;
+
+        Ok((msg.to_owned()?, consumed))
     }
 }
 
@@ -100,7 +102,7 @@ impl<'a> From<&'a Method> for &'a str {
 #[derive(Debug, Clone, Eq)]
 pub struct Request<Body> {
     pub(crate) method: Method,
-    pub(crate) request_uri: Option<String>,
+    pub(crate) request_uri: Option<Url>,
     pub(crate) version: Version,
     pub(crate) headers: Headers,
     pub(crate) body: Body,
@@ -138,7 +140,7 @@ impl<Body> Request<Body> {
 
         RequestRef {
             method: self.method.borrow(),
-            request_uri: self.request_uri.as_deref(),
+            request_uri: self.request_uri.as_ref().map(|u| u.as_str()),
             version: self.version,
             headers,
             body: self.body.as_ref(),
@@ -150,8 +152,8 @@ impl<Body> Request<Body> {
         &self.method
     }
 
-    pub fn uri(&self) -> Option<&str> {
-        self.request_uri.as_deref()
+    pub fn uri(&self) -> Option<&Url> {
+        self.request_uri.as_ref()
     }
 
     pub fn version(&self) -> Version {
@@ -247,7 +249,7 @@ impl RequestBuilder {
         })
     }
 
-    pub fn uri<U: Into<String>>(self, request_uri: U) -> Self {
+    pub fn uri<U: Into<Url>>(self, request_uri: U) -> Self {
         Self(Request {
             request_uri: Some(request_uri.into()),
             ..self.0

@@ -10,12 +10,14 @@ pub enum MessageRef<'a> {
 }
 
 impl<'a> MessageRef<'a> {
-    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Message<T> {
-        match self {
-            MessageRef::Request(request) => Message::Request(request.to_owned()),
+    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Result<Message<T>, ParseError> {
+        let owned = match self {
+            MessageRef::Request(request) => Message::Request(request.to_owned()?),
             MessageRef::Response(response) => Message::Response(response.to_owned()),
             MessageRef::Data(data) => Message::Data(data.to_owned()),
-        }
+        };
+
+        Ok(owned)
     }
 
     pub fn parse(buf: &'a [u8]) -> Result<(Self, usize), ParseError> {
@@ -130,14 +132,18 @@ pub struct RequestRef<'a> {
 }
 
 impl<'a> RequestRef<'a> {
-    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Request<T> {
-        Request {
+    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Result<Request<T>, ParseError> {
+        Ok(Request {
             method: self.method.to_owned(),
-            request_uri: self.request_uri.map(String::from),
+            request_uri: self
+                .request_uri
+                .map(Url::parse)
+                .transpose()
+                .map_err(|_| ParseError::Error)?,
             version: self.version,
             headers: Headers::from_headers_ref(&self.headers),
             body: self.body.into(),
-        }
+        })
     }
 
     #[allow(dead_code)]

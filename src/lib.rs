@@ -10,6 +10,8 @@ mod serializer;
 pub mod headers;
 pub use headers::{HeaderName, HeaderValue, Headers};
 
+pub use url::Url;
+
 use smallvec::SmallVec;
 use std::fmt;
 

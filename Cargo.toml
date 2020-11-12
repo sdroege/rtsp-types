@@ -12,3 +12,4 @@ description = "Provides the basic RTSP message types and parsers/serializers for
 nom = "6.0"
 cookie-factory = "0.3"
 smallvec = "1.0"
+url = "2.0"

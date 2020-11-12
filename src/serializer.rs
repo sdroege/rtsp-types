@@ -1,3 +1,7 @@
+// Copyright (C) 2020 Sebastian Dröge <sebastian@centricular.com>
+//
+// Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
+
 use super::*;
 use cf::bytes::{be_u16, be_u8};
 use cf::combinator::{slice, string};

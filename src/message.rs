@@ -38,9 +38,10 @@ impl<Body> Message<Body> {
     }
 }
 
-impl<'a, T: From<&'a [u8]> + 'a> Message<T> {
-    pub fn parse<B: AsRef<[u8]> + 'a>(buf: &'a B) -> Result<(Self, usize), ParseError> {
-        let (msg, consumed) = MessageRef::parse(buf.as_ref())?;
+impl<'a, T: From<&'a [u8]>> Message<T> {
+    pub fn parse<B: AsRef<[u8]> + 'a + ?Sized>(buf: &'a B) -> Result<(Self, usize), ParseError> {
+        let buf = buf.as_ref();
+        let (msg, consumed) = MessageRef::parse(buf)?;
 
         Ok((msg.to_owned()?, consumed))
     }

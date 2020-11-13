@@ -150,6 +150,26 @@ impl<'a> RequestRef<'a> {
         })
     }
 
+    pub fn write<'b, W: std::io::Write + 'b>(self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        'b: 'a,
+    {
+        match cookie_factory::gen_simple(serializer::request(self), w) {
+            Ok(_) => Ok(()),
+            Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to write message: {:?}", err),
+        }
+    }
+
+    pub fn write_len(&self) -> u64 {
+        match cookie_factory::gen(serializer::request(self.clone()), std::io::sink()) {
+            Ok((_w, pos)) => pos,
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to calculate write length: {:?}", err),
+        }
+    }
+
     #[allow(dead_code)]
     pub fn method(&self) -> &MethodRef<'a> {
         &self.method
@@ -203,6 +223,26 @@ impl<'a> ResponseRef<'a> {
         }
     }
 
+    pub fn write<'b, W: std::io::Write + 'b>(self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        'b: 'a,
+    {
+        match cookie_factory::gen_simple(serializer::response(self), w) {
+            Ok(_) => Ok(()),
+            Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to write message: {:?}", err),
+        }
+    }
+
+    pub fn write_len(&self) -> u64 {
+        match cookie_factory::gen(serializer::response(self.clone()), std::io::sink()) {
+            Ok((_w, pos)) => pos,
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to calculate write length: {:?}", err),
+        }
+    }
+
     #[allow(dead_code)]
     pub fn version(&self) -> Version {
         self.version
@@ -247,6 +287,26 @@ impl<'a> DataRef<'a> {
         Data {
             channel_id: self.channel_id,
             body: self.body.into(),
+        }
+    }
+
+    pub fn write<'b, W: std::io::Write + 'b>(self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        'b: 'a,
+    {
+        match cookie_factory::gen_simple(serializer::data(self), w) {
+            Ok(_) => Ok(()),
+            Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to write message: {:?}", err),
+        }
+    }
+
+    pub fn write_len(&self) -> u64 {
+        match cookie_factory::gen(serializer::data(self.clone()), std::io::sink()) {
+            Ok((_w, pos)) => pos,
+            // This case can't really happen with our serializer!
+            Err(err) => panic!("Failed to calculate write length: {:?}", err),
         }
     }
 

@@ -151,6 +151,20 @@ impl<Body> Request<Body> {
         }
     }
 
+    pub fn write<'b, W: std::io::Write + 'b>(&self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write(w)
+    }
+
+    pub fn write_len(&self) -> u64
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write_len()
+    }
+
     // Accessors
     pub fn method(&self) -> &Method {
         &self.method
@@ -336,6 +350,20 @@ impl<Body> Response<Body> {
         }
     }
 
+    pub fn write<'b, W: std::io::Write + 'b>(&self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write(w)
+    }
+
+    pub fn write_len(&self) -> u64
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write_len()
+    }
+
     // Accessors
     pub fn version(&self) -> Version {
         self.version
@@ -501,6 +529,20 @@ impl<Body> Data<Body> {
 
     pub fn new(channel_id: u8, body: Body) -> Self {
         Self { channel_id, body }
+    }
+
+    pub fn write<'b, W: std::io::Write + 'b>(&self, w: &'b mut W) -> Result<(), WriteError>
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write(w)
+    }
+
+    pub fn write_len(&self) -> u64
+    where
+        Body: AsRef<[u8]>,
+    {
+        self.borrow().write_len()
     }
 
     // Accessors

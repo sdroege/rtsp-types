@@ -60,7 +60,7 @@ fn request_line<'a, W: Write + 'a>(request_line: RequestLine<'a>) -> impl Serial
     ))
 }
 
-fn request<'a, W: Write + 'a>(request: RequestRef<'a>) -> impl SerializeFn<W> + 'a {
+pub(crate) fn request<'a, W: Write + 'a>(request: RequestRef<'a>) -> impl SerializeFn<W> + 'a {
     tuple((
         request_line(RequestLine {
             method: request.method,
@@ -91,7 +91,7 @@ fn status_line<'a, W: Write + 'a>(status_line: StatusLine<'a>) -> impl Serialize
     ))
 }
 
-fn response<'a, W: Write + 'a>(response: ResponseRef<'a>) -> impl SerializeFn<W> + 'a {
+pub(crate) fn response<'a, W: Write + 'a>(response: ResponseRef<'a>) -> impl SerializeFn<W> + 'a {
     tuple((
         status_line(StatusLine {
             version: response.version,
@@ -104,7 +104,7 @@ fn response<'a, W: Write + 'a>(response: ResponseRef<'a>) -> impl SerializeFn<W>
     ))
 }
 
-fn data<'a, W: Write + 'a>(data: DataRef<'a>) -> impl SerializeFn<W> + 'a {
+pub(crate) fn data<'a, W: Write + 'a>(data: DataRef<'a>) -> impl SerializeFn<W> + 'a {
     tuple((
         string("$"),
         be_u8(data.channel_id),

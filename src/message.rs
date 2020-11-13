@@ -11,11 +11,8 @@ pub enum Message<Body> {
     Data(Data<Body>),
 }
 
-impl<Body> Message<Body> {
-    pub(crate) fn borrow(&self) -> MessageRef
-    where
-        Body: AsRef<[u8]>,
-    {
+impl<Body: AsRef<[u8]>> Message<Body> {
+    pub(crate) fn borrow(&self) -> MessageRef {
         match self {
             Message::Request(request) => MessageRef::Request(request.borrow()),
             Message::Response(response) => MessageRef::Response(response.borrow()),
@@ -23,17 +20,11 @@ impl<Body> Message<Body> {
         }
     }
 
-    pub fn write<'b, W: std::io::Write + 'b>(&self, w: &'b mut W) -> Result<(), WriteError>
-    where
-        Body: AsRef<[u8]>,
-    {
+    pub fn write<'b, W: std::io::Write + 'b>(&self, w: &'b mut W) -> Result<(), WriteError> {
         self.borrow().write(w)
     }
 
-    pub fn write_len(&self) -> u64
-    where
-        Body: AsRef<[u8]>,
-    {
+    pub fn write_len(&self) -> u64 {
         self.borrow().write_len()
     }
 }

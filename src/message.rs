@@ -104,6 +104,12 @@ impl<'a> From<&'a Method> for &'a str {
     }
 }
 
+impl PartialEq<Method> for &Method {
+    fn eq(&self, other: &Method) -> bool {
+        (*self).eq(other)
+    }
+}
+
 #[derive(Debug, Clone, Eq)]
 pub struct Request<Body> {
     pub(crate) method: Method,

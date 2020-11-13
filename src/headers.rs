@@ -213,6 +213,18 @@ impl std::hash::Hash for HeaderName {
     }
 }
 
+impl PartialEq<HeaderName> for &HeaderName {
+    fn eq(&self, other: &HeaderName) -> bool {
+        (*self).eq(other)
+    }
+}
+
+impl PartialOrd<HeaderName> for &HeaderName {
+    fn partial_cmp(&self, other: &HeaderName) -> Option<std::cmp::Ordering> {
+        (*self).partial_cmp(other)
+    }
+}
+
 impl PartialEq<String> for HeaderName {
     fn eq(&self, other: &String) -> bool {
         self.eq(other.as_str())
@@ -283,6 +295,18 @@ impl<'a> TryFrom<Vec<u8>> for HeaderValue {
 
     fn try_from(v: Vec<u8>) -> Result<HeaderValue, Utf8Error> {
         String::from_utf8(v).map(HeaderValue).map_err(|_| Utf8Error)
+    }
+}
+
+impl PartialEq<HeaderValue> for &HeaderValue {
+    fn eq(&self, other: &HeaderValue) -> bool {
+        (*self).eq(other)
+    }
+}
+
+impl PartialOrd<HeaderValue> for &HeaderValue {
+    fn partial_cmp(&self, other: &HeaderValue) -> Option<std::cmp::Ordering> {
+        (*self).partial_cmp(other)
     }
 }
 

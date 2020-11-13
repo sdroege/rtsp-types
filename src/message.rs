@@ -338,25 +338,72 @@ impl<Body> Request<Body> {
     }
 
     /// Modify the body of the request with a closure.
-    pub fn map_body<NewBody, F: FnOnce(Body) -> NewBody>(self, func: F) -> Request<NewBody> {
-        // FIXME: Need to update `Content-Length`
+    ///
+    /// This replaces the `Content-Length` header of the message with the length of the new body.
+    pub fn map_body<NewBody: AsRef<[u8]>, F: FnOnce(Body) -> NewBody>(
+        self,
+        func: F,
+    ) -> Request<NewBody> {
+        let Request {
+            method,
+            request_uri,
+            version,
+            mut headers,
+            body,
+        } = self;
+
+        let new_body = func(body);
+
+        {
+            let new_body = new_body.as_ref();
+            if new_body.is_empty() {
+                headers.remove(&crate::headers::CONTENT_LENGTH);
+            } else {
+                headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", new_body.len())),
+                );
+            }
+        }
+
         Request {
-            method: self.method,
-            request_uri: self.request_uri,
-            version: self.version,
-            headers: self.headers,
-            body: func(self.body),
+            method,
+            request_uri,
+            version,
+            headers,
+            body: new_body,
         }
     }
 
     /// Replace the body of the request with a different body.
-    pub fn replace_body<NewBody>(self, new_body: NewBody) -> Request<NewBody> {
-        // FIXME: Need to update `Content-Length`
+    ///
+    /// This replaces the `Content-Length` header of the message with the length of the new body.
+    pub fn replace_body<NewBody: AsRef<[u8]>>(self, new_body: NewBody) -> Request<NewBody> {
+        let Request {
+            method,
+            request_uri,
+            version,
+            mut headers,
+            body: _body,
+        } = self;
+
+        {
+            let new_body = new_body.as_ref();
+            if new_body.is_empty() {
+                headers.remove(&crate::headers::CONTENT_LENGTH);
+            } else {
+                headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", new_body.len())),
+                );
+            }
+        }
+
         Request {
-            method: self.method,
-            request_uri: self.request_uri,
-            version: self.version,
-            headers: self.headers,
+            method,
+            request_uri,
+            version,
+            headers,
             body: new_body,
         }
     }
@@ -613,25 +660,72 @@ impl<Body> Response<Body> {
     }
 
     /// Modify the body of the response with a closure.
-    pub fn map_body<NewBody, F: FnOnce(Body) -> NewBody>(self, func: F) -> Response<NewBody> {
-        // FIXME: Need to update `Content-Length`
+    ///
+    /// This replaces the `Content-Length` header of the message with the length of the new body.
+    pub fn map_body<NewBody: AsRef<[u8]>, F: FnOnce(Body) -> NewBody>(
+        self,
+        func: F,
+    ) -> Response<NewBody> {
+        let Response {
+            version,
+            status,
+            reason_phrase,
+            mut headers,
+            body,
+        } = self;
+
+        let new_body = func(body);
+
+        {
+            let new_body = new_body.as_ref();
+            if new_body.is_empty() {
+                headers.remove(&crate::headers::CONTENT_LENGTH);
+            } else {
+                headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", new_body.len())),
+                );
+            }
+        }
+
         Response {
-            version: self.version,
-            status: self.status,
-            reason_phrase: self.reason_phrase,
-            headers: self.headers,
-            body: func(self.body),
+            version,
+            status,
+            reason_phrase,
+            headers,
+            body: new_body,
         }
     }
 
     /// Replace the body of the response with a different body.
-    pub fn replace_body<NewBody>(self, new_body: NewBody) -> Response<NewBody> {
-        // FIXME: Need to update `Content-Length`
+    ///
+    /// This replaces the `Content-Length` header of the message with the length of the new body.
+    pub fn replace_body<NewBody: AsRef<[u8]>>(self, new_body: NewBody) -> Response<NewBody> {
+        let Response {
+            version,
+            status,
+            reason_phrase,
+            mut headers,
+            body: _body,
+        } = self;
+
+        {
+            let new_body = new_body.as_ref();
+            if new_body.is_empty() {
+                headers.remove(&crate::headers::CONTENT_LENGTH);
+            } else {
+                headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", new_body.len())),
+                );
+            }
+        }
+
         Response {
-            version: self.version,
-            status: self.status,
-            reason_phrase: self.reason_phrase,
-            headers: self.headers,
+            version,
+            status,
+            reason_phrase,
+            headers,
             body: new_body,
         }
     }

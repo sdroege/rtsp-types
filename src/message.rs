@@ -412,7 +412,8 @@ impl<Body> Request<Body> {
     /// Appends a value to an existing RTSP header or inserts it.
     ///
     /// Additional values are comma separated as defined in [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2).
-    pub fn append_header(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn append_header<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.headers.append(name, value);
     }
 
@@ -421,7 +422,8 @@ impl<Body> Request<Body> {
     /// If a header with the same name already exists then its value will be replaced.
     ///
     /// See [`append`](#method.append) for appending additional values to a header.
-    pub fn insert_header(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn insert_header<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.headers.insert(name, value);
     }
 
@@ -494,8 +496,7 @@ impl RequestBuilder {
     }
 
     /// Append a header to the request.
-    pub fn header<N: Into<HeaderName>, V: Into<HeaderValue>>(mut self, name: N, value: V) -> Self {
-        let name = name.into();
+    pub fn header<V: Into<HeaderValue>>(mut self, name: HeaderName, value: V) -> Self {
         let value = value.into();
 
         self.0.headers.append(name, value);
@@ -734,7 +735,8 @@ impl<Body> Response<Body> {
     /// Appends a value to an existing RTSP header or inserts it.
     ///
     /// Additional values are comma separated as defined in [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2).
-    pub fn append_header(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn append_header<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.headers.append(name, value);
     }
 
@@ -743,7 +745,8 @@ impl<Body> Response<Body> {
     /// If a header with the same name already exists then its value will be replaced.
     ///
     /// See [`append`](#method.append) for appending additional values to a header.
-    pub fn insert_header(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn insert_header<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.headers.insert(name, value);
     }
 
@@ -821,8 +824,7 @@ impl ResponseBuilder {
     }
 
     /// Append a header to the response.
-    pub fn header<N: Into<HeaderName>, V: Into<HeaderValue>>(mut self, name: N, value: V) -> Self {
-        let name = name.into();
+    pub fn header<V: Into<HeaderValue>>(mut self, name: HeaderName, value: V) -> Self {
         let value = value.into();
 
         self.0.headers.append(name, value);

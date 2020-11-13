@@ -72,7 +72,8 @@ impl Headers {
     /// If a header with the same name already exists then its value will be replaced.
     ///
     /// See [`append`](#method.append) for appending additional values to a header.
-    pub fn insert(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn insert<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.0.insert(name, value);
     }
 
@@ -84,7 +85,8 @@ impl Headers {
     /// Appends a value to an existing RTSP header or inserts it.
     ///
     /// Additional values are comma separated as defined in [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2).
-    pub fn append(&mut self, name: HeaderName, value: HeaderValue) {
+    pub fn append<V: Into<HeaderValue>>(&mut self, name: HeaderName, value: V) {
+        let value = value.into();
         self.0
             .entry(name)
             .and_modify(|old_value| {
@@ -99,7 +101,7 @@ impl Headers {
         self.0.get(name)
     }
 
-    /// Gets a multiple reference to an RTSP header value if it exists.
+    /// Gets a mutable reference to an RTSP header value if it exists.
     pub fn get_mut(&mut self, name: &HeaderName) -> Option<&mut HeaderValue> {
         self.0.get_mut(name)
     }

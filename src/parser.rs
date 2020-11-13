@@ -318,7 +318,7 @@ REMAINDER"
             Ok((
                 &b"REMAINDER"[..],
                 Request::builder(Method::Options, Version::V2_0)
-                    .uri(Url::parse("rtsp://media.example.com/movie/twister.3gp").unwrap())
+                    .request_uri(Url::parse("rtsp://media.example.com/movie/twister.3gp").unwrap())
                     .header(crate::headers::CSEQ, "1")
                     .header(crate::headers::SUPPORTED, "play.basic, play.scale")
                     .header(crate::headers::USER_AGENT, "PhonyClient/1.2")

@@ -177,12 +177,24 @@ impl<Body> Request<Body> {
         &self.method
     }
 
-    pub fn uri(&self) -> Option<&Url> {
+    pub fn set_method(&mut self, method: Method) {
+        self.method = method;
+    }
+
+    pub fn request_uri(&self) -> Option<&Url> {
         self.request_uri.as_ref()
+    }
+
+    pub fn set_request_uri(&mut self, request_uri: Option<Url>) {
+        self.request_uri = request_uri;
     }
 
     pub fn version(&self) -> Version {
         self.version
+    }
+
+    pub fn set_version(&mut self, version: Version) {
+        self.version = version;
     }
 
     pub fn body(&self) -> &Body {
@@ -274,7 +286,7 @@ impl RequestBuilder {
         })
     }
 
-    pub fn uri<U: Into<Url>>(self, request_uri: U) -> Self {
+    pub fn request_uri<U: Into<Url>>(self, request_uri: U) -> Self {
         Self(Request {
             request_uri: Some(request_uri.into()),
             ..self.0
@@ -382,28 +394,28 @@ impl<Body> Response<Body> {
         self.version
     }
 
-    pub fn status(&self) -> StatusCode {
-        self.status
-    }
-
-    pub fn reason_phrase(&self) -> &str {
-        self.reason_phrase.as_str()
-    }
-
-    pub fn body(&self) -> &Body {
-        &self.body
-    }
-
     pub fn set_version(&mut self, version: Version) {
         self.version = version;
+    }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
     }
 
     pub fn set_status(&mut self, status: StatusCode) {
         self.status = status;
     }
 
+    pub fn reason_phrase(&self) -> &str {
+        self.reason_phrase.as_str()
+    }
+
     pub fn set_reason_phrase<S: Into<String>>(&mut self, reason_phrase: S) {
         self.reason_phrase = reason_phrase.into();
+    }
+
+    pub fn body(&self) -> &Body {
+        &self.body
     }
 
     // Body API

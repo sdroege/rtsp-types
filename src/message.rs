@@ -328,12 +328,8 @@ impl<BodyA, BodyB: PartialEq<BodyA>> PartialEq<Response<BodyA>> for Response<Bod
 }
 
 impl Response<Empty> {
-    pub fn builder<S: Into<String>>(
-        version: Version,
-        status: StatusCode,
-        reason_phrase: S,
-    ) -> ResponseBuilder {
-        ResponseBuilder::new(version, status, reason_phrase.into())
+    pub fn builder(version: Version, status: StatusCode) -> ResponseBuilder {
+        ResponseBuilder::new(version, status)
     }
 }
 
@@ -475,19 +471,27 @@ impl<Body> AsMut<Headers> for Response<Body> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ResponseBuilder(Response<Empty>);
+pub struct ResponseBuilder(Response<Empty>, Option<String>);
 
 impl ResponseBuilder {
-    fn new(version: Version, status: StatusCode, reason_phrase: String) -> Self {
+    fn new(version: Version, status: StatusCode) -> Self {
         let response = Response {
             version,
             status,
-            reason_phrase,
+            reason_phrase: String::new(),
             headers: Headers::new(),
             body: Empty,
         };
 
-        Self(response)
+        Self(response, None)
+    }
+
+    pub fn reason_phrase<S: Into<String>>(mut self, reason_phrase: S) -> Self {
+        let reason_phrase = reason_phrase.into();
+
+        self.1 = Some(reason_phrase);
+
+        self
     }
 
     pub fn header<N: Into<HeaderName>, V: Into<HeaderValue>>(mut self, name: N, value: V) -> Self {
@@ -500,25 +504,33 @@ impl ResponseBuilder {
     }
 
     pub fn empty(self) -> Response<Empty> {
-        self.0
+        let ResponseBuilder(mut response, reason_phrase) = self;
+
+        response.reason_phrase = reason_phrase.unwrap_or_else(|| response.status.to_string());
+
+        response
     }
 
-    pub fn build<Body: AsRef<[u8]>>(mut self, body: Body) -> Response<Body> {
+    pub fn build<Body: AsRef<[u8]>>(self, body: Body) -> Response<Body> {
+        let ResponseBuilder(mut response, reason_phrase) = self;
+
         {
             let body = body.as_ref();
             if !body.is_empty() {
-                self.0.headers.insert(
+                response.headers.insert(
                     crate::headers::CONTENT_LENGTH,
                     HeaderValue::from(format!("{}", body.len())),
                 );
             }
         }
 
+        let reason_phrase = reason_phrase.unwrap_or_else(|| response.status.to_string());
+
         Response {
-            version: self.0.version,
-            status: self.0.status,
-            reason_phrase: self.0.reason_phrase,
-            headers: self.0.headers,
+            version: response.version,
+            status: response.status,
+            reason_phrase,
+            headers: response.headers,
             body,
         }
     }

@@ -2,6 +2,117 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+//! Crate for handling RTSP ([RFC 7826](https://tools.ietf.org/html/rfc7826))
+//! messages, including a parser and serializer and support for parsing and generating
+//! well-known headers.
+//!
+//! ## Creating an `OPTIONS` request
+//!
+//! ```rust
+//! let request = rtsp_types::Request::builder(
+//!         rtsp_types::Method::Options,
+//!         rtsp_types::Version::V2_0
+//!     )
+//!     .header(rtsp_types::headers::CSEQ, "1")
+//!     .empty();
+//! ```
+//!
+//! This request contains an empty body.
+//!
+//! ## Creating a `SET_PARAMETER` request with a request body
+//!
+//! ```rust
+//! let request = rtsp_types::Request::builder(
+//!         rtsp_types::Method::SetParameter,
+//!         rtsp_types::Version::V2_0
+//!     )
+//!     .request_uri(rtsp_types::Url::parse("rtsp://example.com/test").expect("Invalid URI"))
+//!     .header(rtsp_types::headers::CSEQ, "2")
+//!     .header(rtsp_types::headers::CONTENT_TYPE, "text/parameters")
+//!     .build(Vec::from(&b"barparam: barstuff"[..]));
+//! ```
+//!
+//! The body is passed to the `build()` function and a `Content-Length` header is automatically
+//! inserted into the request headers.
+//!
+//! ## Creating an `OK` response
+//!
+//! ```rust
+//! let response = rtsp_types::Response::builder(
+//!         rtsp_types::Version::V2_0,
+//!         rtsp_types::StatusCode::Ok,
+//!     )
+//!     .header(rtsp_types::headers::CSEQ, "1")
+//!     .empty();
+//! ```
+//!
+//! This response contains an empty body. A non-empty body can be added in the same way as for
+//! requests.
+//!
+//! ## Creating a data message
+//!
+//! ```rust
+//! let data = rtsp_types::Data::new(0, vec![0, 1, 2, 3, 4]);
+//! ```
+//!
+//! This creates a new data message for channel id 0 with the given `Vec<u8>`.
+//!
+//! ## Parsing an RTSP message
+//!
+//! ```rust
+//! let data = b"OPTIONS * RTSP/2.0\r\n\
+//!              CSeq: 1\r\n\
+//!              Supported: play.basic, play.scale\r\n\
+//!              User-Agent: PhonyClient/1.2\r\n\
+//!              \r\n";
+//!
+//! let (message, consumed): (rtsp_types::Message<Vec<u8>>, _) =
+//!     rtsp_types::Message::parse(data).expect("Failed to parse data");
+//!
+//! assert_eq!(consumed, data.len());
+//! match message {
+//!     rtsp_types::Message::Request(ref request) => {
+//!         assert_eq!(request.method(), rtsp_types::Method::Options);
+//!     },
+//!     _ => unreachable!(),
+//! }
+//! ```
+//!
+//! Messages can be parsed from any `AsRef<[u8]>` and to any borrowed or owned body type that
+//! implements `From<&[u8]>`.
+//!
+//! More details about parsing can be found at [`Message::parse`](enum.Message.html#method.parse).
+//!
+//! ## Serializing an RTSP message
+//!
+//! ```rust
+//! let request = rtsp_types::Request::builder(
+//!         rtsp_types::Method::SetParameter,
+//!         rtsp_types::Version::V2_0
+//!     )
+//!     .request_uri(rtsp_types::Url::parse("rtsp://example.com/test").expect("Invalid URI"))
+//!     .header(rtsp_types::headers::CSEQ, "2")
+//!     .header(rtsp_types::headers::CONTENT_TYPE, "text/parameters")
+//!     .build(Vec::from(&b"barparam: barstuff"[..]));
+//!
+//!  let mut data = Vec::new();
+//!  request.write(&mut data).expect("Failed to serialize request");
+//!
+//!  assert_eq!(
+//!     data,
+//!     b"SET_PARAMETER rtsp://example.com/test RTSP/2.0\r\n\
+//!       Content-Length: 18\r\n\
+//!       Content-Type: text/parameters\r\n\
+//!       CSeq: 2\r\n\
+//!       \r\n\
+//!       barparam: barstuff",
+//!  );
+//! ```
+//!
+//! Serializing can be done to any type that implements `std::io::Write`.
+//!
+//! More details about serializing can be found at [`Message::write`](enum.Message.html#method.write).
+
 mod message;
 pub use message::*;
 // TODO: Maybe make this public at a later time
@@ -19,90 +130,155 @@ pub use url::Url;
 use std::fmt;
 use tinyvec::TinyVec;
 
+/// RTSP protocol version of the message.
+///
+/// RTSP 1.0 is defined in [RFC 2326](https://tools.ietf.org/html/rfc2326), RTSP 2.0 is defined in
+/// [RFC 7826](https://tools.ietf.org/html/rfc7826). Check the RFCs for the differences between the
+/// two versions.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Version {
+    /// RTSP/1.0
     V1_0,
+    /// RTSP/2.0
     V2_0,
 }
 
+/// RTSP response status codes.
+///
+/// These are defined in [RFC 7826 section 17](https://tools.ietf.org/html/rfc7826#section-17)
+/// together with their semantics for the different requests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StatusCode {
+    /// Continue
     Continue,
+    /// Ok
     Ok,
+    /// Moved permanently
     MovedPermanently,
+    /// Found
     Found,
+    /// See other
     SeeOther,
+    /// Not modified
     NotModified,
+    /// Use proxy
     UseProxy,
+    /// Bad request
     BadRequest,
+    /// Unauthorized
     Unauthorized,
+    /// Payment required
     PaymentRequired,
+    /// Forbidden
     Forbidden,
+    /// Not found
     NotFound,
+    /// Method not allowed
     MethodNotAllowed,
+    /// Not acceptable
     NotAcceptable,
+    /// Proxy authentication required
     ProxyAuthenticationRequired,
+    /// Request timeout
     RequestTimeout,
+    /// Gone
     Gone,
+    /// Precondition failed
     PreconditionFailed,
+    /// Request message body too large
     RequestMessageBodyTooLarge,
+    /// Request URI too long
     RequestURITooLong,
+    /// Unsupported media type
     UnsupportedMediaType,
+    /// Parameter not understood
     ParameterNotUnderstood,
+    /// Reserved
     Reserved,
+    /// Not enough bandwidth
     NotEnoughBandwidth,
+    /// Session not found
     SessionNotFound,
+    /// Method not valid in this state
     MethodNotValidInThisState,
+    /// Header field not valid for resource
     HeaderFieldNotValidForResource,
+    /// Invalid range
     InvalidRange,
+    /// Parameter is read-only
     ParameterIsReadOnly,
+    /// Aggregate operation not allowed
     AggregateOperationNotAllowed,
+    /// Only aggregate operation allowed
     OnlyAggregateOperationAllowed,
+    /// Unsupported transport
     UnsupportedTransport,
+    /// Destination unreachable
     DestinationUnreachable,
+    /// Destination prohibited
     DestinationProhibited,
+    /// Data transport not ready yet
     DataTransportNotReadyYet,
+    /// Notification reason unknown
     NotificationReasonUnknown,
+    /// Key management error
     KeyManagementError,
+    /// Connection authorization required
     ConnectionAuthorizationRequired,
+    /// Connection credentials not accepted
     ConnectionCredentialsNotAccepted,
+    /// Failure to establish secure connection
     FailureToEstablishSecureConnection,
+    /// Internal server error
     InternalServerError,
+    /// Not implemented
     NotImplemented,
+    /// Bad gateway
     BadGateway,
+    /// Service unavailable
     ServiceUnavailable,
+    /// Gateway timeout
     GatewayTimeout,
+    /// RTSP version not supported
     RTSPVersionNotSupported,
+    /// Option not supported
     OptionNotSupported,
+    /// Proxy unavailable
     ProxyUnavailable,
+    /// Extension status code
     Extension(u16),
 }
 
 impl StatusCode {
+    /// Returns `true` if the status code is `1xx`.
     pub fn is_informational(self) -> bool {
         let val = u16::from(self);
 
         val >= 100 && val < 200
     }
 
+    /// Returns `true` if the status code is `2xx`.
     pub fn is_success(self) -> bool {
         let val = u16::from(self);
 
         val >= 200 && val < 300
     }
 
+    /// Returns `true` if the status code is `3xx`.
     pub fn is_redirection(self) -> bool {
         let val = u16::from(self);
 
         val >= 300 && val < 400
     }
 
+    /// Returns `true` if the status code is `4xx`.
     pub fn is_client_error(self) -> bool {
         let val = u16::from(self);
 
         val >= 400 && val < 500
     }
 
+    /// Returns `true` if the status code is `5xx`.
     pub fn is_server_error(self) -> bool {
         let val = u16::from(self);
 
@@ -167,6 +343,7 @@ impl From<u16> for StatusCode {
     }
 }
 
+/// Converts to the numeric value of a `StatusCode`.
 impl From<StatusCode> for u16 {
     fn from(v: StatusCode) -> Self {
         match v {
@@ -223,6 +400,7 @@ impl From<StatusCode> for u16 {
     }
 }
 
+/// Provides the default reason phrase for the `StatusCode`.
 impl fmt::Display for StatusCode {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -291,6 +469,10 @@ impl fmt::Display for StatusCode {
     }
 }
 
+/// Empty body.
+///
+/// This can be used as the `Response` or `Request` body in place of a `&[]`
+/// to signal an empty body.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Empty;
 
@@ -300,10 +482,13 @@ impl AsRef<[u8]> for Empty {
     }
 }
 
+/// Message parsing error.
 // TODO: Distinguish more errors and provide more information!
 #[derive(Debug)]
 pub enum ParseError {
+    /// Parsing failed irrecoverably.
     Error,
+    /// Message was not complete and more data is required.
     Incomplete,
 }
 
@@ -313,14 +498,16 @@ impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
             ParseError::Error => write!(f, "Parse Error"),
-            ParseError::Incomplete => write!(f, "Incomplete"),
+            ParseError::Incomplete => write!(f, "Incomplete message"),
         }
     }
 }
 
+/// Serialization write error.
 // TODO: Distinguish more errors and provide more information!
 #[derive(Debug)]
 pub enum WriteError {
+    /// Error reported by the underlying IO type
     IoError(std::io::Error),
 }
 
@@ -335,7 +522,7 @@ impl std::error::Error for WriteError {
 impl std::fmt::Display for WriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
-            WriteError::IoError(ref error) => write!(f, "Write error: {}", error),
+            WriteError::IoError(ref error) => write!(f, "Write IO error: {}", error),
         }
     }
 }

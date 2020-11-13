@@ -2,6 +2,11 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+//! RTSP header definitions.
+//!
+//! See [RFC 7826 section 18](https://tools.ietf.org/html/rfc7826#section-18) for the standardized
+//! headers and their semantics.
+
 use super::*;
 
 use std::borrow::{Borrow, Cow};
@@ -10,6 +15,11 @@ use std::convert::TryFrom;
 use std::error;
 use std::fmt;
 
+/// A collection of RTSP headers together with their values.
+///
+/// [`Request`](../struct.Request.html) and [`Response`](../struct.Response.html) implement
+/// `AsRef<Headers>` and `AsMut<Headers>, which allows functions working with headers to be
+/// implemented generically over those traits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Headers(pub(crate) BTreeMap<HeaderName, HeaderValue>);
 
@@ -57,14 +67,23 @@ impl Headers {
         owned_headers
     }
 
+    /// Insert an RTSP header with its value.
+    ///
+    /// If a header with the same name already exists then its value will be replaced.
+    ///
+    /// See [`append`](#method.append) for appending additional values to a header.
     pub fn insert(&mut self, name: HeaderName, value: HeaderValue) {
         self.0.insert(name, value);
     }
 
+    /// Removes and RTSP header if it exists.
     pub fn remove(&mut self, name: &HeaderName) {
         self.0.remove(&name);
     }
 
+    /// Appends a value to an existing RTSP header or inserts it.
+    ///
+    /// Additional values are comma separated as defined in [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2).
     pub fn append(&mut self, name: HeaderName, value: HeaderValue) {
         self.0
             .entry(name)
@@ -75,22 +94,27 @@ impl Headers {
             .or_insert(value);
     }
 
+    /// Gets an RTSP header value if it exists.
     pub fn get(&self, name: &HeaderName) -> Option<&HeaderValue> {
         self.0.get(name)
     }
 
+    /// Gets a multiple reference to an RTSP header value if it exists.
     pub fn get_mut(&mut self, name: &HeaderName) -> Option<&mut HeaderValue> {
         self.0.get_mut(name)
     }
 
+    /// Iterator over all header name and value pairs.
     pub fn iter(&self) -> impl Iterator<Item = (&HeaderName, &HeaderValue)> {
         self.0.iter()
     }
 
+    /// Iterator over all header names.
     pub fn names(&self) -> impl Iterator<Item = &HeaderName> {
         self.0.keys()
     }
 
+    /// Iterator over all header values.
     pub fn values(&self) -> impl Iterator<Item = &HeaderValue> {
         self.0.values()
     }
@@ -108,14 +132,24 @@ impl AsMut<Headers> for Headers {
     }
 }
 
+/// Representation of an RTSP header name.
+///
+/// This ensures that the header name only contains ASCII characters and comparisons on it are
+/// case-insensitive as required by the RTSP RFC.
+///
+/// RTSP headers are not normalized to a specific case but stored in here as created.
 #[derive(Debug, Clone, Eq)]
 pub struct HeaderName(Cow<'static, str>);
 
 impl HeaderName {
+    /// Get a `&str` representation of the header.
     pub fn as_str(&self) -> &str {
         self.0.borrow()
     }
 
+    /// Convert a static `&str` to a header name.
+    ///
+    /// This does not involve any heap allocations.
     pub fn from_static_str(v: &'static str) -> Result<HeaderName, AsciiError> {
         if !v.is_ascii() {
             return Err(AsciiError);
@@ -129,6 +163,7 @@ impl HeaderName {
     }
 }
 
+/// Create a header name from a `&[u8]`.
 impl<'a> TryFrom<&'a [u8]> for HeaderName {
     type Error = AsciiError;
 
@@ -143,6 +178,7 @@ impl<'a> TryFrom<&'a [u8]> for HeaderName {
     }
 }
 
+/// Create a header name from a `&str`.
 impl<'a> TryFrom<&'a str> for HeaderName {
     type Error = AsciiError;
 
@@ -151,6 +187,10 @@ impl<'a> TryFrom<&'a str> for HeaderName {
     }
 }
 
+/// Create a header name from a `String`.
+///
+/// This takes ownership of the passed in `String` and does not involve an additional heap
+/// allocation.
 impl<'a> TryFrom<String> for HeaderName {
     type Error = AsciiError;
 
@@ -163,18 +203,21 @@ impl<'a> TryFrom<String> for HeaderName {
     }
 }
 
+/// Case-insensitive comparison of header names.
 impl PartialEq for HeaderName {
     fn eq(&self, other: &Self) -> bool {
         self.eq(other.as_str())
     }
 }
 
+/// Case-insensitive ordering of header names.
 impl PartialOrd for HeaderName {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
+/// Case-insensitive ordering of header names.
 impl Ord for HeaderName {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let s = self.0.as_bytes();
@@ -202,6 +245,7 @@ impl Ord for HeaderName {
     }
 }
 
+/// Case-insensitive hashing of header names.
 impl std::hash::Hash for HeaderName {
     fn hash<H>(&self, h: &mut H)
     where
@@ -259,10 +303,14 @@ impl fmt::Display for HeaderName {
     }
 }
 
+/// Representation of a header value.
+///
+/// This is equivalent to a `String`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HeaderValue(String);
 
 impl HeaderValue {
+    /// Get a `&str` for the header value.
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -328,6 +376,7 @@ impl fmt::Display for HeaderValue {
     }
 }
 
+/// Parsing a `HeaderName` failed because it contained non-ASCII characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AsciiError;
 
@@ -339,6 +388,7 @@ impl fmt::Display for AsciiError {
     }
 }
 
+/// Parsing a `HeaderValue` failed because it contained invalid UTF-8 characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Utf8Error;
 

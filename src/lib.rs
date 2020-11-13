@@ -78,6 +78,39 @@ pub enum StatusCode {
     Extension(u16),
 }
 
+impl StatusCode {
+    pub fn is_informational(self) -> bool {
+        let val = u16::from(self);
+
+        val >= 100 && val < 200
+    }
+
+    pub fn is_success(self) -> bool {
+        let val = u16::from(self);
+
+        val >= 200 && val < 300
+    }
+
+    pub fn is_redirection(self) -> bool {
+        let val = u16::from(self);
+
+        val >= 300 && val < 400
+    }
+
+    pub fn is_client_error(self) -> bool {
+        let val = u16::from(self);
+
+        val >= 400 && val < 500
+    }
+
+    pub fn is_server_error(self) -> bool {
+        let val = u16::from(self);
+
+        val >= 500 && val < 600
+    }
+}
+
+/// Converts from the numeric value of a `StatusCode`.
 impl From<u16> for StatusCode {
     fn from(v: u16) -> Self {
         match v {

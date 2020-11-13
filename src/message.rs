@@ -287,7 +287,17 @@ impl RequestBuilder {
         self.0
     }
 
-    pub fn build<Body>(self, body: Body) -> Request<Body> {
+    pub fn build<Body: AsRef<[u8]>>(mut self, body: Body) -> Request<Body> {
+        {
+            let body = body.as_ref();
+            if !body.is_empty() {
+                self.0.headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", body.len())),
+                );
+            }
+        }
+
         Request {
             method: self.0.method,
             request_uri: self.0.request_uri,
@@ -493,7 +503,17 @@ impl ResponseBuilder {
         self.0
     }
 
-    pub fn build<Body>(self, body: Body) -> Response<Body> {
+    pub fn build<Body: AsRef<[u8]>>(mut self, body: Body) -> Response<Body> {
+        {
+            let body = body.as_ref();
+            if !body.is_empty() {
+                self.0.headers.insert(
+                    crate::headers::CONTENT_LENGTH,
+                    HeaderValue::from(format!("{}", body.len())),
+                );
+            }
+        }
+
         Response {
             version: self.0.version,
             status: self.0.status,

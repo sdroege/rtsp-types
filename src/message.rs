@@ -21,6 +21,24 @@ pub enum Message<Body> {
     Data(Data<Body>),
 }
 
+impl<Body> From<Request<Body>> for Message<Body> {
+    fn from(v: Request<Body>) -> Self {
+        Message::Request(v)
+    }
+}
+
+impl<Body> From<Response<Body>> for Message<Body> {
+    fn from(v: Response<Body>) -> Self {
+        Message::Response(v)
+    }
+}
+
+impl<Body> From<Data<Body>> for Message<Body> {
+    fn from(v: Data<Body>) -> Self {
+        Message::Data(v)
+    }
+}
+
 impl<Body: AsRef<[u8]>> Message<Body> {
     pub(crate) fn borrow(&self) -> MessageRef {
         match self {

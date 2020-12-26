@@ -400,3 +400,15 @@ impl fmt::Display for Utf8Error {
         write!(fmt, "Invalid UTF-8")
     }
 }
+
+/// Parsing a `HeaderValue` failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeaderParseError;
+
+impl error::Error for HeaderParseError {}
+
+impl fmt::Display for HeaderParseError {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "Error parsing error")
+    }
+}

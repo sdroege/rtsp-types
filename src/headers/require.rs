@@ -41,41 +41,6 @@ impl Require {
         RequireBuilder(Vec::new())
     }
 
-    /// Parses the `Require` header from headers.
-    pub fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Require>, HeaderParseError> {
-        let headers = headers.as_ref();
-
-        let header = match headers.get(&REQUIRE) {
-            None => return Ok(None),
-            Some(header) => header,
-        };
-
-        let mut require = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            require.push(feature.into());
-        }
-
-        Ok(Some(Require(require)))
-    }
-
-    /// Inserts the `Require` header into headers, possibly replacing an existing `Require` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
-        let headers = headers.as_mut();
-
-        let mut require = String::new();
-        for feature in &self.0 {
-            if !require.is_empty() {
-                require.push_str(", ");
-            }
-
-            require.push_str(feature);
-        }
-
-        headers.insert(REQUIRE, require);
-    }
-
     /// Check if the "play.basic" feature is required.
     ///
     /// See [RFC 7826 section 11.1](https://tools.ietf.org/html/rfc7826#section-11.1).
@@ -147,5 +112,57 @@ impl RequireBuilder {
     /// Build the `Require` header.
     pub fn build(self) -> Require {
         Require(self.0)
+    }
+}
+
+impl super::TypedHeader for Require {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
+        let headers = headers.as_ref();
+
+        let header = match headers.get(&REQUIRE) {
+            None => return Ok(None),
+            Some(header) => header,
+        };
+
+        let mut require = Vec::new();
+        for feature in header.as_str().split(',') {
+            let feature = feature.trim();
+
+            require.push(feature.into());
+        }
+
+        Ok(Some(Require(require)))
+    }
+
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut require = String::new();
+        for feature in &self.0 {
+            if !require.is_empty() {
+                require.push_str(", ");
+            }
+
+            require.push_str(feature);
+        }
+
+        headers.insert(REQUIRE, require);
+    }
+}
+
+impl super::TypedAppendableHeader for Require {
+    fn append_to(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut require = String::new();
+        for feature in &self.0 {
+            if !require.is_empty() {
+                require.push_str(", ");
+            }
+
+            require.push_str(feature);
+        }
+
+        headers.append(REQUIRE, require);
     }
 }

@@ -46,9 +46,8 @@ impl From<CSeq> for u128 {
     }
 }
 
-impl CSeq {
-    /// Parses the `CSeq` header from headers.
-    pub fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<CSeq>, HeaderParseError> {
+impl super::TypedHeader for CSeq {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
         let header = match headers.get(&CSEQ) {
@@ -65,8 +64,7 @@ impl CSeq {
         Ok(Some(cseq))
     }
 
-    /// Inserts the `CSeq` header into headers, possibly replacing an existing `CSeq` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
         headers.insert(CSEQ, self.0.to_string());

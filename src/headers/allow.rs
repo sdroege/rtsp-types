@@ -40,9 +40,27 @@ impl Allow {
     pub fn builder() -> AllowBuilder {
         AllowBuilder(Vec::new())
     }
+}
 
-    /// Parses the `Allow` header from headers.
-    pub fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Allow>, HeaderParseError> {
+/// Builder for the 'Allow' header.
+#[derive(Debug, Clone)]
+pub struct AllowBuilder(Vec<Method>);
+
+impl AllowBuilder {
+    /// Add the provided method to the `Allow` header.
+    pub fn method(mut self, method: Method) -> Self {
+        self.0.push(method);
+        self
+    }
+
+    /// Build the `Allow` header.
+    pub fn build(self) -> Allow {
+        Allow(self.0)
+    }
+}
+
+impl super::TypedHeader for Allow {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
         let header = match headers.get(&ALLOW) {
@@ -60,8 +78,7 @@ impl Allow {
         Ok(Some(Allow(allow)))
     }
 
-    /// Inserts the `Allow` header into headers, possibly replacing an existing `Allow` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
         let mut allow = String::new();
@@ -77,19 +94,19 @@ impl Allow {
     }
 }
 
-/// Builder for the 'Allow' header.
-#[derive(Debug, Clone)]
-pub struct AllowBuilder(Vec<Method>);
+impl super::TypedAppendableHeader for Allow {
+    fn append_to(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
 
-impl AllowBuilder {
-    /// Add the provided method to the `Allow` header.
-    pub fn method(mut self, method: Method) -> Self {
-        self.0.push(method);
-        self
-    }
+        let mut allow = String::new();
+        for method in &self.0 {
+            if !allow.is_empty() {
+                allow.push_str(", ");
+            }
 
-    /// Build the `Allow` header.
-    pub fn build(self) -> Allow {
-        Allow(self.0)
+            allow.push_str(method.into());
+        }
+
+        headers.append(ALLOW, allow);
     }
 }

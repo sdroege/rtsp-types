@@ -40,9 +40,27 @@ impl Public {
     pub fn builder() -> PublicBuilder {
         PublicBuilder(Vec::new())
     }
+}
 
-    /// Parses the `Public` header from headers.
-    pub fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Public>, HeaderParseError> {
+/// Builder for the `Public` header.
+#[derive(Debug, Clone)]
+pub struct PublicBuilder(Vec<Method>);
+
+impl PublicBuilder {
+    /// Add the provided method to the `Public` header.
+    pub fn method(mut self, method: Method) -> Self {
+        self.0.push(method);
+        self
+    }
+
+    /// Build the `Public` header.
+    pub fn build(self) -> Public {
+        Public(self.0)
+    }
+}
+
+impl super::TypedHeader for Public {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
         let header = match headers.get(&PUBLIC) {
@@ -60,8 +78,7 @@ impl Public {
         Ok(Some(Public(public)))
     }
 
-    /// Inserts the `Public` header into headers, possibly replacing an existing `Public` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
         let mut public = String::new();
@@ -77,19 +94,19 @@ impl Public {
     }
 }
 
-/// Builder for the `Public` header.
-#[derive(Debug, Clone)]
-pub struct PublicBuilder(Vec<Method>);
+impl super::TypedAppendableHeader for Public {
+    fn append_to(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
 
-impl PublicBuilder {
-    /// Add the provided method to the `Public` header.
-    pub fn method(mut self, method: Method) -> Self {
-        self.0.push(method);
-        self
-    }
+        let mut public = String::new();
+        for method in &self.0 {
+            if !public.is_empty() {
+                public.push_str(", ");
+            }
 
-    /// Build the `Public` header.
-    pub fn build(self) -> Public {
-        Public(self.0)
+            public.push_str(method.into());
+        }
+
+        headers.append(PUBLIC, public);
     }
 }

@@ -4,6 +4,8 @@
 
 use super::*;
 
+use crate::headers::{TypedAppendableHeader, TypedHeader};
+
 /// Enum holding all possible RTSP message types.
 ///
 /// A `Message` can be a [`Request`](struct.Request.html), a [`Response`](struct.Response.html) or
@@ -445,6 +447,18 @@ impl<Body> Request<Body> {
         self.headers.insert(name, value);
     }
 
+    /// Append a typed RTSP header with its value.
+    pub fn append_typed_header<H: TypedAppendableHeader>(&mut self, header: &H) {
+        self.headers.append_typed(header);
+    }
+
+    /// Insert a typed RTSP header with its value.
+    ///
+    /// If a header with the same name already exists then its value will be replaced.
+    pub fn insert_typed_header<H: TypedHeader>(&mut self, header: &H) {
+        self.headers.insert_typed(header);
+    }
+
     /// Removes and RTSP header if it exists.
     pub fn remove_header(&mut self, name: &HeaderName) {
         self.headers.remove(name);
@@ -453,6 +467,11 @@ impl<Body> Request<Body> {
     /// Gets an RTSP header value if it exists.
     pub fn header(&self, name: &HeaderName) -> Option<&HeaderValue> {
         self.headers.get(name)
+    }
+
+    /// Gets a typed RTSP header value if it exists.
+    pub fn typed_header<H: TypedHeader>(&self) -> Result<Option<H>, headers::HeaderParseError> {
+        self.headers.get_typed()
     }
 
     /// Gets a mutable reference to an RTSP header value if it exists.
@@ -518,6 +537,13 @@ impl RequestBuilder {
         let value = value.into();
 
         self.0.headers.append(name, value);
+
+        self
+    }
+
+    /// Append a typed header to the request.
+    pub fn typed_header<H: TypedHeader>(mut self, header: &H) -> Self {
+        self.0.headers.insert_typed(header);
 
         self
     }
@@ -768,6 +794,18 @@ impl<Body> Response<Body> {
         self.headers.insert(name, value);
     }
 
+    /// Append a typed RTSP header with its value.
+    pub fn append_typed_header<H: TypedAppendableHeader>(&mut self, header: &H) {
+        self.headers.append_typed(header);
+    }
+
+    /// Insert a typed RTSP header with its value.
+    ///
+    /// If a header with the same name already exists then its value will be replaced.
+    pub fn insert_typed_header<H: TypedHeader>(&mut self, header: &H) {
+        self.headers.insert_typed(header);
+    }
+
     /// Removes and RTSP header if it exists.
     pub fn remove_header(&mut self, name: &HeaderName) {
         self.headers.remove(name);
@@ -776,6 +814,11 @@ impl<Body> Response<Body> {
     /// Gets an RTSP header value if it exists.
     pub fn header(&self, name: &HeaderName) -> Option<&HeaderValue> {
         self.headers.get(name)
+    }
+
+    /// Gets a typed RTSP header value if it exists.
+    pub fn typed_header<H: TypedHeader>(&self) -> Result<Option<H>, headers::HeaderParseError> {
+        self.headers.get_typed()
     }
 
     /// Gets a mutable reference to an RTSP header value if it exists.
@@ -846,6 +889,13 @@ impl ResponseBuilder {
         let value = value.into();
 
         self.0.headers.append(name, value);
+
+        self
+    }
+
+    /// Append a typed header to the response.
+    pub fn typed_header<H: TypedHeader>(mut self, header: &H) -> Self {
+        self.0.headers.insert_typed(header);
 
         self
     }

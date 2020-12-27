@@ -72,11 +72,6 @@ impl Headers {
         self.0.insert(name, value);
     }
 
-    /// Removes and RTSP header if it exists.
-    pub fn remove(&mut self, name: &HeaderName) {
-        self.0.remove(&name);
-    }
-
     /// Appends a value to an existing RTSP header or inserts it.
     ///
     /// Additional values are comma separated as defined in [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2).
@@ -91,9 +86,33 @@ impl Headers {
             .or_insert(value);
     }
 
+    /// Insert a typed RTSP header.
+    ///
+    /// If a header with the same name already exists then its value will be replaced.
+    pub fn insert_typed<H: TypedHeader>(&mut self, header: &H) {
+        header.insert_into(self);
+    }
+
+    /// Append a typed RTSP header.
+    ///
+    /// This is only defined for header types that can be appended.
+    pub fn append_typed<H: TypedAppendableHeader>(&mut self, header: &H) {
+        header.append_to(self);
+    }
+
+    /// Removes and RTSP header if it exists.
+    pub fn remove(&mut self, name: &HeaderName) {
+        self.0.remove(&name);
+    }
+
     /// Gets an RTSP header value if it exists.
     pub fn get(&self, name: &HeaderName) -> Option<&HeaderValue> {
         self.0.get(name)
+    }
+
+    /// Gets a typed RTSP header value if it exists.
+    pub fn get_typed<H: TypedHeader>(&self) -> Result<Option<H>, HeaderParseError> {
+        H::from_headers(self)
     }
 
     /// Gets a mutable reference to an RTSP header value if it exists.
@@ -375,6 +394,20 @@ impl fmt::Display for HeaderValue {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.write_str(self.0.as_str())
     }
+}
+
+/// Trait for typed headers.
+pub trait TypedHeader: Sized {
+    /// Parses the header from headers.
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError>;
+    /// Inserts the header into headers.
+    fn insert_into(&self, headers: impl AsMut<Headers>);
+}
+
+/// Trait for typed headers that can be appended.
+pub trait TypedAppendableHeader: TypedHeader {
+    /// Appends the header to headers.
+    fn append_to(&self, headers: impl AsMut<Headers>);
 }
 
 /// Parsing a `HeaderName` failed because it contained non-ASCII characters.

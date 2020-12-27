@@ -41,43 +41,6 @@ impl Supported {
         SupportedBuilder(Vec::new())
     }
 
-    /// Parses the `Supported` header from headers.
-    pub fn from_headers(
-        headers: impl AsRef<Headers>,
-    ) -> Result<Option<Supported>, HeaderParseError> {
-        let headers = headers.as_ref();
-
-        let header = match headers.get(&SUPPORTED) {
-            None => return Ok(None),
-            Some(header) => header,
-        };
-
-        let mut supported = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            supported.push(feature.into());
-        }
-
-        Ok(Some(Supported(supported)))
-    }
-
-    /// Inserts the `Supported` header into headers, possibly replacing an existing `Supported` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
-        let headers = headers.as_mut();
-
-        let mut supported = String::new();
-        for feature in &self.0 {
-            if !supported.is_empty() {
-                supported.push_str(", ");
-            }
-
-            supported.push_str(feature);
-        }
-
-        headers.insert(SUPPORTED, supported);
-    }
-
     /// Check if the "play.basic" feature is supported.
     ///
     /// See [RFC 7826 section 11.1](https://tools.ietf.org/html/rfc7826#section-11.1).
@@ -149,5 +112,57 @@ impl SupportedBuilder {
     /// Build the `Supported` header.
     pub fn build(self) -> Supported {
         Supported(self.0)
+    }
+}
+
+impl super::TypedHeader for Supported {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
+        let headers = headers.as_ref();
+
+        let header = match headers.get(&SUPPORTED) {
+            None => return Ok(None),
+            Some(header) => header,
+        };
+
+        let mut supported = Vec::new();
+        for feature in header.as_str().split(',') {
+            let feature = feature.trim();
+
+            supported.push(feature.into());
+        }
+
+        Ok(Some(Supported(supported)))
+    }
+
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut supported = String::new();
+        for feature in &self.0 {
+            if !supported.is_empty() {
+                supported.push_str(", ");
+            }
+
+            supported.push_str(feature);
+        }
+
+        headers.insert(SUPPORTED, supported);
+    }
+}
+
+impl super::TypedAppendableHeader for Supported {
+    fn append_to(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut supported = String::new();
+        for feature in &self.0 {
+            if !supported.is_empty() {
+                supported.push_str(", ");
+            }
+
+            supported.push_str(feature);
+        }
+
+        headers.append(SUPPORTED, supported);
     }
 }

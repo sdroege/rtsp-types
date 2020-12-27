@@ -41,43 +41,6 @@ impl Unsupported {
         UnsupportedBuilder(Vec::new())
     }
 
-    /// Parses the `Unsupported` header from headers.
-    pub fn from_headers(
-        headers: impl AsRef<Headers>,
-    ) -> Result<Option<Unsupported>, HeaderParseError> {
-        let headers = headers.as_ref();
-
-        let header = match headers.get(&UNSUPPORTED) {
-            None => return Ok(None),
-            Some(header) => header,
-        };
-
-        let mut unsupported = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            unsupported.push(feature.into());
-        }
-
-        Ok(Some(Unsupported(unsupported)))
-    }
-
-    /// Inserts the `Unsupported` header into headers, possibly replacing an existing `Unsupported` header.
-    pub fn insert_into(&self, mut headers: impl AsMut<Headers>) {
-        let headers = headers.as_mut();
-
-        let mut unsupported = String::new();
-        for feature in &self.0 {
-            if !unsupported.is_empty() {
-                unsupported.push_str(", ");
-            }
-
-            unsupported.push_str(feature);
-        }
-
-        headers.insert(UNSUPPORTED, unsupported);
-    }
-
     /// Check if the "play.basic" feature is unsupported.
     ///
     /// See [RFC 7826 section 11.1](https://tools.ietf.org/html/rfc7826#section-11.1).
@@ -149,5 +112,57 @@ impl UnsupportedBuilder {
     /// Build the `Unsupported` header.
     pub fn build(self) -> Unsupported {
         Unsupported(self.0)
+    }
+}
+
+impl super::TypedHeader for Unsupported {
+    fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
+        let headers = headers.as_ref();
+
+        let header = match headers.get(&UNSUPPORTED) {
+            None => return Ok(None),
+            Some(header) => header,
+        };
+
+        let mut unsupported = Vec::new();
+        for feature in header.as_str().split(',') {
+            let feature = feature.trim();
+
+            unsupported.push(feature.into());
+        }
+
+        Ok(Some(Unsupported(unsupported)))
+    }
+
+    fn insert_into(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut unsupported = String::new();
+        for feature in &self.0 {
+            if !unsupported.is_empty() {
+                unsupported.push_str(", ");
+            }
+
+            unsupported.push_str(feature);
+        }
+
+        headers.insert(UNSUPPORTED, unsupported);
+    }
+}
+
+impl super::TypedAppendableHeader for Unsupported {
+    fn append_to(&self, mut headers: impl AsMut<Headers>) {
+        let headers = headers.as_mut();
+
+        let mut unsupported = String::new();
+        for feature in &self.0 {
+            if !unsupported.is_empty() {
+                unsupported.push_str(", ");
+            }
+
+            unsupported.push_str(feature);
+        }
+
+        headers.append(UNSUPPORTED, unsupported);
     }
 }

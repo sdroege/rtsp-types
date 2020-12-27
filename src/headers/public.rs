@@ -35,6 +35,18 @@ impl AsMut<Vec<Method>> for Public {
     }
 }
 
+impl From<Vec<Method>> for Public {
+    fn from(v: Vec<Method>) -> Self {
+        Public(v)
+    }
+}
+
+impl<'a> From<&'a [Method]> for Public {
+    fn from(v: &'a [Method]) -> Self {
+        Public(v.to_vec())
+    }
+}
+
 impl Public {
     /// Creates a new `Public` header builder.
     pub fn builder() -> PublicBuilder {

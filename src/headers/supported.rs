@@ -35,6 +35,24 @@ impl AsMut<Vec<String>> for Supported {
     }
 }
 
+impl From<Vec<String>> for Supported {
+    fn from(v: Vec<String>) -> Self {
+        Supported(v)
+    }
+}
+
+impl<'a> From<&'a [String]> for Supported {
+    fn from(v: &'a [String]) -> Self {
+        Supported(v.to_vec())
+    }
+}
+
+impl<'a> From<&'a [&'a &str]> for Supported {
+    fn from(v: &'a [&'a &str]) -> Self {
+        Supported(v.iter().map(|s| String::from(**s)).collect())
+    }
+}
+
 impl Supported {
     /// Creates a new `Supported` header builder.
     pub fn builder() -> SupportedBuilder {

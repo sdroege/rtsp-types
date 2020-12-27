@@ -35,6 +35,24 @@ impl AsMut<Vec<String>> for Unsupported {
     }
 }
 
+impl From<Vec<String>> for Unsupported {
+    fn from(v: Vec<String>) -> Self {
+        Unsupported(v)
+    }
+}
+
+impl<'a> From<&'a [String]> for Unsupported {
+    fn from(v: &'a [String]) -> Self {
+        Unsupported(v.to_vec())
+    }
+}
+
+impl<'a> From<&'a [&'a &str]> for Unsupported {
+    fn from(v: &'a [&'a &str]) -> Self {
+        Unsupported(v.iter().map(|s| String::from(**s)).collect())
+    }
+}
+
 impl Unsupported {
     /// Creates a new `Unsupported` header builder.
     pub fn builder() -> UnsupportedBuilder {

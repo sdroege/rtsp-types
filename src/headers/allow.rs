@@ -35,6 +35,18 @@ impl AsMut<Vec<Method>> for Allow {
     }
 }
 
+impl From<Vec<Method>> for Allow {
+    fn from(v: Vec<Method>) -> Self {
+        Allow(v)
+    }
+}
+
+impl<'a> From<&'a [Method]> for Allow {
+    fn from(v: &'a [Method]) -> Self {
+        Allow(v.to_vec())
+    }
+}
+
 impl Allow {
     /// Creates a new `Allow` header builder.
     pub fn builder() -> AllowBuilder {

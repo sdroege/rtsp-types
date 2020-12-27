@@ -35,6 +35,24 @@ impl AsMut<Vec<String>> for Require {
     }
 }
 
+impl From<Vec<String>> for Require {
+    fn from(v: Vec<String>) -> Self {
+        Require(v)
+    }
+}
+
+impl<'a> From<&'a [String]> for Require {
+    fn from(v: &'a [String]) -> Self {
+        Require(v.to_vec())
+    }
+}
+
+impl<'a> From<&'a [&'a &str]> for Require {
+    fn from(v: &'a [&'a &str]) -> Self {
+        Require(v.iter().map(|s| String::from(**s)).collect())
+    }
+}
+
 impl Require {
     /// Creates a new `Require` header builder.
     pub fn builder() -> RequireBuilder {

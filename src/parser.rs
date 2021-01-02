@@ -16,7 +16,7 @@ use nom::{Err, IResult, Needed};
 use std::str;
 use tinyvec::TinyVec;
 
-fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
+pub(crate) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     fn is_token_char(i: u8) -> bool {
         is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
     }

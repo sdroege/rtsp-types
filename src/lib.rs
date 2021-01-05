@@ -254,35 +254,35 @@ impl StatusCode {
     pub fn is_informational(self) -> bool {
         let val = u16::from(self);
 
-        val >= 100 && val < 200
+        (100..200).contains(&val)
     }
 
     /// Returns `true` if the status code is `2xx`.
     pub fn is_success(self) -> bool {
         let val = u16::from(self);
 
-        val >= 200 && val < 300
+        (200..300).contains(&val)
     }
 
     /// Returns `true` if the status code is `3xx`.
     pub fn is_redirection(self) -> bool {
         let val = u16::from(self);
 
-        val >= 300 && val < 400
+        (300..400).contains(&val)
     }
 
     /// Returns `true` if the status code is `4xx`.
     pub fn is_client_error(self) -> bool {
         let val = u16::from(self);
 
-        val >= 400 && val < 500
+        (400..500).contains(&val)
     }
 
     /// Returns `true` if the status code is `5xx`.
     pub fn is_server_error(self) -> bool {
         let val = u16::from(self);
 
-        val >= 500 && val < 600
+        (500..600).contains(&val)
     }
 }
 

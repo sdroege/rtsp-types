@@ -17,7 +17,7 @@ fn rtsp_version<W: Write>(version: Version) -> impl SerializeFn<W> {
     }
 }
 
-fn method<'a, W: Write>(method: MethodRef<'a>) -> impl SerializeFn<W> + 'a {
+fn method<W: Write>(method: MethodRef<'_>) -> impl SerializeFn<W> + '_ {
     move |out: WriteContext<W>| match method {
         MethodRef::Describe => string("DESCRIBE")(out),
         MethodRef::GetParameter => string("GET_PARAMETER")(out),

@@ -28,6 +28,7 @@ pub use public::Public;
 pub use require::Require;
 pub use supported::Supported;
 pub use transport::{
-    RtpLowerTransport, RtpProfile, RtpTransport, RtpTransportParameters, Transport, TransportMode,
+    OtherTransport, RtpLowerTransport, RtpProfile, RtpTransport, RtpTransportParameters, Transport,
+    TransportMode, TransportParameters, Transports,
 };
 pub use unsupported::Unsupported;

@@ -187,7 +187,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     let ssrc = value
                         .ok_or(HeaderParseError)?
                         .split('/')
-                        .map(|s| s.parse::<u32>().map_err(|_| HeaderParseError))
+                        .map(|s| u32::from_str_radix(s, 16).map_err(|_| HeaderParseError))
                         .collect::<Result<Vec<_>, _>>()?;
 
                     if ssrc.is_empty() {
@@ -507,7 +507,8 @@ impl super::TypedHeader for Transports {
             Some(header) => header,
         };
 
-        let (_rem, transport) = parser::transports(header.as_str().as_bytes()).unwrap(); //map_err(|_| HeaderParseError)?;
+        let (_rem, transport) =
+            parser::transports(header.as_str().as_bytes()).map_err(|_| HeaderParseError)?;
 
         Ok(Some(transport.into()))
     }
@@ -567,7 +568,7 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
-                            write!(&mut transports, "{}", ssrc).unwrap();
+                            write!(&mut transports, "{:08X}", ssrc).unwrap();
                         }
                     }
 

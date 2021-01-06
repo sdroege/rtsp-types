@@ -132,13 +132,25 @@ pub struct RtpTransportParameters {
     pub ssrc: Vec<u32>,
     /// Transport mode.
     pub mode: Vec<TransportMode>,
-    /// Destination addresses.
-    pub dest_addr: Vec<String>,
-    /// Source addresses.
-    pub src_addr: Vec<String>,
-    // TODO: setup, connection
     /// RTP and RTCP are muxed on the same transport channel.
     pub rtcp_mux: bool,
+    /// Destination addresses. RTSP 2.0 only.
+    pub dest_addr: Vec<String>,
+    /// Source addresses. RTSP 2.0 only.
+    pub src_addr: Vec<String>,
+    /// Append to the resource. RTSP 1.0 RECORD mode only.
+    pub append: bool,
+    /// RTP/RTCP port for multicast. RTSP 1.0 only.
+    pub port: Option<(u16, Option<u16>)>,
+    /// Server RTP/RTCP port for unicast. RTSP 1.0 only.
+    pub client_port: Option<(u16, Option<u16>)>,
+    /// Server RTP/RTCP port for unicast. RTSP 1.0 only.
+    pub server_port: Option<(u16, Option<u16>)>,
+    /// Destination address. RTSP 1.0 only.
+    pub destination: Option<String>,
+    /// Source address. RTSP 1.0 only.
+    pub source: Option<String>,
+    // TODO: setup, connection
     // TODO mikey
     /// Other parameters.
     ///
@@ -254,6 +266,37 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     } else {
                         rtp_params.dest_addr = addrs;
                     }
+                }
+                "port" | "server_port" | "client_port" => {
+                    let ports = value.ok_or(HeaderParseError)?;
+                    let mut ports = ports.splitn(1, '-');
+
+                    let port_start = ports
+                        .next()
+                        .and_then(|s| s.parse::<u16>().ok())
+                        .ok_or(HeaderParseError)?;
+
+                    let port_end = ports
+                        .next()
+                        .map(|s| s.parse::<u16>().map_err(|_| HeaderParseError))
+                        .transpose()?;
+
+                    if name == "port" {
+                        rtp_params.port = Some((port_start, port_end));
+                    } else if name == "server_port" {
+                        rtp_params.server_port = Some((port_start, port_end));
+                    } else {
+                        rtp_params.client_port = Some((port_start, port_end));
+                    }
+                }
+                "destination" => {
+                    rtp_params.destination = Some(value.ok_or(HeaderParseError)?);
+                }
+                "source" => {
+                    rtp_params.source = Some(value.ok_or(HeaderParseError)?);
+                }
+                "append" => {
+                    rtp_params.append = true;
                 }
                 "RTCP-mux" => {
                     rtp_params.rtcp_mux = true;
@@ -602,6 +645,45 @@ impl super::TypedHeader for Transports {
 
                             write!(&mut transports, "\"{}\"", addr).unwrap()
                         }
+                    }
+
+                    if rtp.params.append {
+                        transports.push(';');
+                        transports.push_str("append");
+                    }
+
+                    if let Some((port_start, port_end)) = rtp.params.port {
+                        transports.push(';');
+                        write!(&mut transports, "port={}", port_start).unwrap();
+                        if let Some(port_end) = port_end {
+                            write!(&mut transports, "-{}", port_end).unwrap();
+                        }
+                    }
+
+                    if let Some((port_start, port_end)) = rtp.params.client_port {
+                        transports.push(';');
+                        write!(&mut transports, "client_port={}", port_start).unwrap();
+                        if let Some(port_end) = port_end {
+                            write!(&mut transports, "-{}", port_end).unwrap();
+                        }
+                    }
+
+                    if let Some((port_start, port_end)) = rtp.params.server_port {
+                        transports.push(';');
+                        write!(&mut transports, "server_port={}", port_start).unwrap();
+                        if let Some(port_end) = port_end {
+                            write!(&mut transports, "-{}", port_end).unwrap();
+                        }
+                    }
+
+                    if let Some(ref destination) = rtp.params.destination {
+                        transports.push(';');
+                        write!(&mut transports, "destination={}", destination).unwrap();
+                    }
+
+                    if let Some(ref source) = rtp.params.source {
+                        transports.push(';');
+                        write!(&mut transports, "source={}", source).unwrap();
                     }
 
                     if !rtp.params.mode.is_empty() {

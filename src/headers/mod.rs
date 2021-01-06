@@ -18,6 +18,7 @@ pub mod cseq;
 pub mod features;
 pub mod public;
 pub mod require;
+pub mod rtp_info;
 pub mod supported;
 pub mod transport;
 pub mod unsupported;
@@ -26,6 +27,7 @@ pub use allow::Allow;
 pub use cseq::CSeq;
 pub use public::Public;
 pub use require::Require;
+pub use rtp_info::RtpInfos;
 pub use supported::Supported;
 pub use transport::{
     OtherTransport, RtpLowerTransport, RtpProfile, RtpTransport, RtpTransportParameters, Transport,

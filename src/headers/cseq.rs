@@ -6,10 +6,10 @@ use super::*;
 
 /// `CSeq` header ([RFC 7826 section 18.20](https://tools.ietf.org/html/rfc7826#section-18.20)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CSeq(u128);
+pub struct CSeq(u32);
 
 impl std::ops::Deref for CSeq {
-    type Target = u128;
+    type Target = u32;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -22,26 +22,26 @@ impl std::ops::DerefMut for CSeq {
     }
 }
 
-impl AsRef<u128> for CSeq {
-    fn as_ref(&self) -> &u128 {
+impl AsRef<u32> for CSeq {
+    fn as_ref(&self) -> &u32 {
         &self.0
     }
 }
 
-impl AsMut<u128> for CSeq {
-    fn as_mut(&mut self) -> &mut u128 {
+impl AsMut<u32> for CSeq {
+    fn as_mut(&mut self) -> &mut u32 {
         &mut self.0
     }
 }
 
-impl From<u128> for CSeq {
-    fn from(v: u128) -> CSeq {
+impl From<u32> for CSeq {
+    fn from(v: u32) -> CSeq {
         CSeq(v)
     }
 }
 
-impl From<CSeq> for u128 {
-    fn from(v: CSeq) -> u128 {
+impl From<CSeq> for u32 {
+    fn from(v: CSeq) -> u32 {
         v.0
     }
 }
@@ -57,7 +57,7 @@ impl super::TypedHeader for CSeq {
 
         let cseq = header
             .as_str()
-            .parse::<u128>()
+            .parse::<u32>()
             .map(CSeq)
             .map_err(|_| HeaderParseError)?;
 

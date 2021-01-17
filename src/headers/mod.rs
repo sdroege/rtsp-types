@@ -16,6 +16,7 @@ pub use constants::*;
 pub mod allow;
 pub mod cseq;
 pub mod features;
+pub mod pipelined_requests;
 pub mod public;
 pub mod range;
 pub mod require;
@@ -26,6 +27,7 @@ pub mod unsupported;
 
 pub use allow::Allow;
 pub use cseq::CSeq;
+pub use pipelined_requests::PipelinedRequests;
 pub use public::Public;
 pub use range::{NptRange, NptTime, Range, SmpteRange, SmpteTime, SmpteType, UtcRange, UtcTime};
 pub use require::Require;

@@ -174,7 +174,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 }
                 "interleaved" => {
                     let channels = value.ok_or(HeaderParseError)?;
-                    let mut channels = channels.splitn(1, '-');
+                    let mut channels = channels.splitn(2, '-');
 
                     let channel_start = channels
                         .next()
@@ -269,7 +269,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 }
                 "port" | "server_port" | "client_port" => {
                     let ports = value.ok_or(HeaderParseError)?;
-                    let mut ports = ports.splitn(1, '-');
+                    let mut ports = ports.splitn(2, '-');
 
                     let port_start = ports
                         .next()
@@ -438,41 +438,38 @@ mod parser {
             } else if in_quotes && !o.starts_with(b"\"") {
                 o = &o[1..];
             } else {
-                use nom::error::FromExternalError;
-
-                // Can only happen if this is a " at the end of the Transport header,
-                // otherwise we would've gone into the branch further up.
-                let o = if in_quotes && o.starts_with(b"\"") {
-                    &o[1..]
-                } else {
-                    o
-                };
-
-                let (fst, snd) = i.split_at(i.len() - o.len());
-                // Was not a valid parameter value
-                if fst.is_empty() {
-                    return Err(Err::Error(nom::error::Error::new(
-                        input,
-                        nom::error::ErrorKind::TakeWhile1,
-                    )));
-                }
-
-                let s = str::from_utf8(fst).map_err(|err| {
-                    Err::Error(nom::error::Error::from_external_error(
-                        input,
-                        nom::error::ErrorKind::MapRes,
-                        err,
-                    ))
-                })?;
-
-                return Ok((snd, Some(s)));
+                break;
             }
         }
 
-        Err(Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Eof,
-        )))
+        use nom::error::FromExternalError;
+
+        // Can only happen if this is a " at the end of the Transport header,
+        // otherwise we would've gone into the branch further up.
+        let o = if in_quotes && o.starts_with(b"\"") {
+            &o[1..]
+        } else {
+            o
+        };
+
+        let (fst, snd) = i.split_at(i.len() - o.len());
+        // Was not a valid parameter value
+        if fst.is_empty() {
+            return Err(Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::TakeWhile1,
+            )));
+        }
+
+        let s = str::from_utf8(fst).map_err(|err| {
+            Err::Error(nom::error::Error::from_external_error(
+                input,
+                nom::error::ErrorKind::MapRes,
+                err,
+            ))
+        })?;
+
+        Ok((snd, Some(s)))
     }
 
     fn parameter(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
@@ -773,6 +770,40 @@ mod tests {
         );
 
         let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(request, request2);
+    }
+
+    #[test]
+    fn test_transport_v1() {
+        let header = "RTP/AVP;unicast;client_port=42860-42861";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V1_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    unicast: true,
+                    multicast: false,
+                    client_port: Some((42860, Some(42861))),
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V1_0)
             .typed_header(&transports)
             .empty();
 

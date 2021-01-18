@@ -405,13 +405,21 @@ pub struct TransportParameters(pub BTreeMap<String, Option<String>>);
 mod parser {
     use super::*;
 
-    use nom::bytes::complete::tag;
+    use nom::bytes::complete::{tag, take_while};
     use nom::character::is_alphanumeric;
     use nom::combinator::{all_consuming, map_res};
     use nom::multi::{fold_many0, separated_list1};
     use nom::sequence::{pair, preceded, tuple};
     use nom::{Err, IResult, Needed};
     use std::str;
+
+    fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        fn is_token_char(i: u8) -> bool {
+            is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+        }
+
+        take_while(is_token_char)(input)
+    }
 
     fn parameter_value(input: &[u8]) -> IResult<&[u8], Option<&str>> {
         use std::num::NonZeroUsize;
@@ -475,10 +483,7 @@ mod parser {
     fn parameter(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
         preceded(
             tag(";"),
-            pair(
-                map_res(crate::parser::token, str::from_utf8),
-                parameter_value,
-            ),
+            pair(map_res(token, str::from_utf8), parameter_value),
         )(input)
     }
 
@@ -495,7 +500,7 @@ mod parser {
     }
 
     fn spec(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
-        separated_list1(tag("/"), map_res(crate::parser::token, str::from_utf8))(input)
+        separated_list1(tag("/"), map_res(token, str::from_utf8))(input)
     }
 
     fn transport(input: &[u8]) -> IResult<&[u8], Transport> {
@@ -770,6 +775,39 @@ mod tests {
         );
 
         let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(request, request2);
+    }
+
+    #[test]
+    fn test_transport_multicast() {
+        let header = "RTP/AVP;multicast";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V1_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    unicast: false,
+                    multicast: true,
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V1_0)
             .typed_header(&transports)
             .empty();
 

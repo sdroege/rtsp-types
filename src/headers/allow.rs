@@ -96,7 +96,7 @@ impl super::TypedHeader for Allow {
         let mut allow = String::new();
         for method in &self.0 {
             if !allow.is_empty() {
-                allow.push_str(", ");
+                allow.push(',');
             }
 
             allow.push_str(method.into());
@@ -113,7 +113,7 @@ impl super::TypedAppendableHeader for Allow {
         let mut allow = String::new();
         for method in &self.0 {
             if !allow.is_empty() {
-                allow.push_str(", ");
+                allow.push(',');
             }
 
             allow.push_str(method.into());

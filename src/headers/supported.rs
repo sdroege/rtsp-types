@@ -158,7 +158,7 @@ impl super::TypedHeader for Supported {
         let mut supported = String::new();
         for feature in &self.0 {
             if !supported.is_empty() {
-                supported.push_str(", ");
+                supported.push(',');
             }
 
             supported.push_str(feature);
@@ -175,7 +175,7 @@ impl super::TypedAppendableHeader for Supported {
         let mut supported = String::new();
         for feature in &self.0 {
             if !supported.is_empty() {
-                supported.push_str(", ");
+                supported.push(',');
             }
 
             supported.push_str(feature);

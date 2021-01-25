@@ -158,7 +158,7 @@ impl super::TypedHeader for Require {
         let mut require = String::new();
         for feature in &self.0 {
             if !require.is_empty() {
-                require.push_str(", ");
+                require.push(',');
             }
 
             require.push_str(feature);
@@ -175,7 +175,7 @@ impl super::TypedAppendableHeader for Require {
         let mut require = String::new();
         for feature in &self.0 {
             if !require.is_empty() {
-                require.push_str(", ");
+                require.push(',');
             }
 
             require.push_str(feature);

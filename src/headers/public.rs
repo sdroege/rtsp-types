@@ -96,7 +96,7 @@ impl super::TypedHeader for Public {
         let mut public = String::new();
         for method in &self.0 {
             if !public.is_empty() {
-                public.push_str(", ");
+                public.push(',');
             }
 
             public.push_str(method.into());
@@ -113,7 +113,7 @@ impl super::TypedAppendableHeader for Public {
         let mut public = String::new();
         for method in &self.0 {
             if !public.is_empty() {
-                public.push_str(", ");
+                public.push(',');
             }
 
             public.push_str(method.into());

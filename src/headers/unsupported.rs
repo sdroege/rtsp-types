@@ -158,7 +158,7 @@ impl super::TypedHeader for Unsupported {
         let mut unsupported = String::new();
         for feature in &self.0 {
             if !unsupported.is_empty() {
-                unsupported.push_str(", ");
+                unsupported.push(',');
             }
 
             unsupported.push_str(feature);
@@ -175,7 +175,7 @@ impl super::TypedAppendableHeader for Unsupported {
         let mut unsupported = String::new();
         for feature in &self.0 {
             if !unsupported.is_empty() {
-                unsupported.push_str(", ");
+                unsupported.push(',');
             }
 
             unsupported.push_str(feature);

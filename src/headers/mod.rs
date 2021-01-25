@@ -13,6 +13,7 @@ pub use types::*;
 mod constants;
 pub use constants::*;
 
+pub mod accept;
 pub mod allow;
 pub mod cseq;
 pub mod features;
@@ -26,6 +27,7 @@ pub mod supported;
 pub mod transport;
 pub mod unsupported;
 
+pub use accept::{Accept, MediaType, MediaTypeRange};
 pub use allow::Allow;
 pub use cseq::CSeq;
 pub use pipelined_requests::PipelinedRequests;

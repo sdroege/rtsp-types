@@ -221,22 +221,20 @@ pub mod v2 {
                 } else if !o.starts_with(b"\"") {
                     o = &o[1..];
                 } else {
+                    // Closing quote, also include it
+                    o = &o[1..];
                     break;
                 }
             }
 
+            let (fst, snd) = input.split_at(input.len() - o.len());
             // Did not end with a quote
-            if o.is_empty() {
+            if !fst.ends_with(b"\"") {
                 return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
             }
 
-            let (fst, snd) = i.split_at(i.len() - o.len());
-            if fst.is_empty() {
-                return Err(Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::TakeWhile1,
-                )));
-            }
+            // Must have the starting quote
+            assert!(fst.starts_with(b"\""));
 
             Ok((snd, fst))
         }

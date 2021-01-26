@@ -55,11 +55,11 @@ pub mod v1 {
     pub(super) mod parser {
         use super::*;
 
-        use nom::branch::alt;
+        use crate::nom_extensions::separated_list1_fold;
         use nom::bytes::complete::{tag, take_while};
-        use nom::combinator::{all_consuming, eof, map, map_parser, map_res};
-        use nom::multi::{fold_many1, separated_list1};
-        use nom::sequence::{separated_pair, terminated};
+        use nom::combinator::{all_consuming, map, map_parser, map_res};
+        use nom::multi::separated_list1;
+        use nom::sequence::separated_pair;
         use nom::{Err, IResult};
         use std::str;
 
@@ -83,20 +83,16 @@ pub mod v1 {
             }
 
             map_res(
-                fold_many1(
-                    terminated(param, alt((tag(b";"), eof))),
-                    Info::default(),
-                    |mut acc, param| {
-                        match param.0 {
-                            "url" => acc.uri = Some(param.1),
-                            "seq" => acc.seq = Some(param.1),
-                            "rtptime" => acc.rtptime = Some(param.1),
-                            _ => (),
-                        }
+                separated_list1_fold(tag(b";"), param, Info::default(), |mut acc, param| {
+                    match param.0 {
+                        "url" => acc.uri = Some(param.1),
+                        "seq" => acc.seq = Some(param.1),
+                        "rtptime" => acc.rtptime = Some(param.1),
+                        _ => (),
+                    }
 
-                        acc
-                    },
-                ),
+                    acc
+                }),
                 |info| {
                     let uri = match info.uri {
                         None => {
@@ -186,13 +182,64 @@ pub mod v2 {
     pub(super) mod parser {
         use super::*;
 
+        use crate::nom_extensions::separated_list1_fold;
         use nom::branch::alt;
         use nom::bytes::complete::{tag, take, take_while};
-        use nom::combinator::{all_consuming, eof, map, map_parser, map_res, opt};
-        use nom::multi::{fold_many1, separated_list1};
-        use nom::sequence::{pair, preceded, terminated, tuple};
-        use nom::{Err, IResult};
+        use nom::character::is_alphanumeric;
+        use nom::combinator::{all_consuming, cond, flat_map, map, map_res, opt};
+        use nom::multi::separated_list1;
+        use nom::sequence::tuple;
+        use nom::{Err, IResult, Needed};
         use std::str;
+
+        fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
+            fn is_token_char(i: u8) -> bool {
+                is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+            }
+
+            take_while(is_token_char)(input)
+        }
+
+        fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
+            use std::num::NonZeroUsize;
+
+            if !input.starts_with(b"\"") {
+                return Err(Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Tag,
+                )));
+            }
+
+            let i = &input[1..];
+            let mut o = i;
+
+            while !o.is_empty() {
+                if o.len() >= 2 && o.starts_with(b"\\") {
+                    o = &o[2..];
+                } else if o.starts_with(b"\\") {
+                    return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+                } else if !o.starts_with(b"\"") {
+                    o = &o[1..];
+                } else {
+                    break;
+                }
+            }
+
+            // Did not end with a quote
+            if o.is_empty() {
+                return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+            }
+
+            let (fst, snd) = i.split_at(i.len() - o.len());
+            if fst.is_empty() {
+                return Err(Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::TakeWhile1,
+                )));
+            }
+
+            Ok((snd, fst))
+        }
 
         fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
             if input.is_empty() {
@@ -203,13 +250,15 @@ pub mod v2 {
             }
 
             map(
-                pair(
-                    map_res(take_while(|b| b != b'='), str::from_utf8),
-                    opt(preceded(
-                        tag("="),
-                        map_res(take_while(|b| b != b';'), str::from_utf8),
-                    )),
-                ),
+                tuple((
+                    map_res(token, str::from_utf8),
+                    flat_map(opt(tag(b"=")), |res| {
+                        cond(
+                            res.is_some(),
+                            map_res(alt((quoted_string, token)), str::from_utf8),
+                        )
+                    }),
+                )),
                 |(name, value)| (name, value),
             )(input)
         }
@@ -221,21 +270,24 @@ pub mod v2 {
                     map_res(map_res(take(8usize), str::from_utf8), |s| {
                         u32::from_str_radix(s, 16)
                     }),
-                    opt(preceded(
-                        tag(":"),
-                        fold_many1(
-                            terminated(param, alt((tag(b";"), eof))),
-                            BTreeMap::new(),
-                            |mut acc, param| {
-                                acc.insert(String::from(param.0), param.1.map(String::from));
+                    flat_map(opt(tag(b":")), |res| {
+                        cond(
+                            res.is_some(),
+                            separated_list1_fold(
+                                tag(b";"),
+                                param,
+                                BTreeMap::new(),
+                                |mut acc, param| {
+                                    acc.insert(String::from(param.0), param.1.map(String::from));
 
-                                acc
-                            },
-                        ),
-                    )),
+                                    acc
+                                },
+                            ),
+                        )
+                    }),
                 )),
                 |(_, ssrc, params)| {
-                    let mut params = params.unwrap_or_else(BTreeMap::new);
+                    let mut params = params.unwrap_or_default();
 
                     let seq = if let Some((_, Some(seq))) = params.remove_entry("seq") {
                         match seq.parse::<u16>() {
@@ -287,20 +339,14 @@ pub mod v2 {
                         url::Url::parse,
                     ),
                     tag(b"\" "),
-                    all_consuming(separated_list1(
-                        tag(b" "),
-                        map_parser(take_while(|b| b != b' '), ssrc_info),
-                    )),
+                    separated_list1(tag(b" "), ssrc_info),
                 )),
                 |(_, uri, _, ssrc_infos)| RtpInfo { uri, ssrc_infos },
             )(input)
         }
 
         pub(crate) fn rtp_infos(input: &[u8]) -> IResult<&[u8], Vec<RtpInfo>> {
-            all_consuming(separated_list1(
-                tag(","),
-                map_parser(take_while(|b| b != b','), rtp_info),
-            ))(input)
+            all_consuming(separated_list1(tag(","), rtp_info))(input)
         }
     }
 }

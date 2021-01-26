@@ -26,6 +26,7 @@ pub mod public;
 pub mod range;
 pub mod require;
 pub mod rtp_info;
+pub mod seek_style;
 pub mod session;
 pub mod supported;
 pub mod transport;
@@ -43,6 +44,7 @@ pub use public::Public;
 pub use range::{NptRange, NptTime, Range, SmpteRange, SmpteTime, SmpteType, UtcRange, UtcTime};
 pub use require::Require;
 pub use rtp_info::RtpInfos;
+pub use seek_style::SeekStyle;
 pub use session::Session;
 pub use supported::Supported;
 pub use transport::{

@@ -22,6 +22,7 @@ where
 }
 
 // Copy of nom's separated_list0 converted into a fold function
+#[allow(dead_code)]
 pub fn separated_list0_fold<I, O, O2, E, F, G, H, R>(
     mut sep: G,
     mut f: F,

@@ -30,9 +30,11 @@ pub mod seek_style;
 pub mod session;
 pub mod supported;
 pub mod transport;
+pub mod notify_reason;
 pub mod unsupported;
 
 pub use accept::{Accept, MediaType, MediaTypeRange};
+pub use notify_reason::NotifyReason;
 pub use accept_ranges::{AcceptRanges, RangeUnit};
 pub use allow::Allow;
 pub use content_length::ContentLength;

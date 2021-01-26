@@ -405,11 +405,12 @@ pub struct TransportParameters(pub BTreeMap<String, Option<String>>);
 mod parser {
     use super::*;
 
+    use nom::branch::alt;
     use nom::bytes::complete::{tag, take_while};
     use nom::character::is_alphanumeric;
-    use nom::combinator::{all_consuming, map_res};
+    use nom::combinator::{all_consuming, cond, flat_map, map, map_res, opt};
     use nom::multi::{fold_many0, separated_list1};
-    use nom::sequence::{pair, preceded, tuple};
+    use nom::sequence::{preceded, tuple};
     use nom::{Err, IResult, Needed};
     use std::str;
 
@@ -421,75 +422,85 @@ mod parser {
         take_while(is_token_char)(input)
     }
 
-    fn parameter_value(input: &[u8]) -> IResult<&[u8], Option<&str>> {
+    fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        fn is_rtsp_unreserved_char(i: u8) -> bool {
+            // rtsp_unreserved
+            is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
+        }
+
+        take_while(is_rtsp_unreserved_char)(input)
+    }
+
+    fn quoted_string_or_address_list(input: &[u8]) -> IResult<&[u8], &[u8]> {
         use std::num::NonZeroUsize;
 
-        if !input.starts_with(b"=") {
-            return Ok((input, None));
+        if !input.starts_with(b"\"") {
+            return Err(Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )));
         }
 
         let i = &input[1..];
         let mut o = i;
-        let mut in_quotes = false;
 
         while !o.is_empty() {
-            // rtsp_unreserved + / for ssrc/dest_addr/src_addr
-            if !in_quotes && is_alphanumeric(o[0]) || b"$-_.+!*'()/".contains(&o[0]) {
-                o = &o[1..];
-            } else if in_quotes && o.len() >= 2 && o.starts_with(b"\\") {
+            if o.len() >= 2 && o.starts_with(b"\\") {
                 o = &o[2..];
-            } else if in_quotes && o.starts_with(b"\\") {
+            } else if o.starts_with(b"\\") {
                 return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
-            } else if o.len() >= 2 && o.starts_with(b"\"") {
-                in_quotes = !in_quotes;
+            } else if !o.starts_with(b"\"") {
                 o = &o[1..];
-            } else if in_quotes && !o.starts_with(b"\"") {
-                o = &o[1..];
+            } else if o.starts_with(b"\"/\"") {
+                // Address list
+                o = &o[3..];
             } else {
+                // Closing quote, also include it
+                o = &o[1..];
                 break;
             }
         }
 
-        use nom::error::FromExternalError;
-
-        // Can only happen if this is a " at the end of the Transport header,
-        // otherwise we would've gone into the branch further up.
-        let o = if in_quotes && o.starts_with(b"\"") {
-            &o[1..]
-        } else {
-            o
-        };
-
-        let (fst, snd) = i.split_at(i.len() - o.len());
-        // Was not a valid parameter value
-        if fst.is_empty() {
-            return Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::TakeWhile1,
-            )));
+        let (fst, snd) = input.split_at(input.len() - o.len());
+        // Did not end with a quote
+        if !fst.ends_with(b"\"") {
+            return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
         }
 
-        let s = str::from_utf8(fst).map_err(|err| {
-            Err::Error(nom::error::Error::from_external_error(
-                input,
-                nom::error::ErrorKind::MapRes,
-                err,
-            ))
-        })?;
+        // Must have the starting quote
+        assert!(fst.starts_with(b"\""));
 
-        Ok((snd, Some(s)))
+        Ok((snd, fst))
     }
 
     fn parameter(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
-        preceded(
-            tag(";"),
-            pair(map_res(token, str::from_utf8), parameter_value),
+        if input.is_empty() {
+            return Err(Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Eof,
+            )));
+        }
+
+        map(
+            tuple((
+                map_res(token, str::from_utf8),
+                flat_map(opt(tag(b"=")), |res| {
+                    cond(
+                        res.is_some(),
+                        map_res(
+                            alt((quoted_string_or_address_list, rtsp_unreserved)),
+                            str::from_utf8,
+                        ),
+                    )
+                }),
+            )),
+            |(name, value)| (name, value),
         )(input)
     }
 
     fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
         fold_many0(
-            parameter,
+            preceded(tag(b";"), parameter),
             TransportParameters(BTreeMap::new()),
             |mut acc, (name, value)| {
                 // FIXME: We assume each parameter appears only once
@@ -500,7 +511,7 @@ mod parser {
     }
 
     fn spec(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
-        separated_list1(tag("/"), map_res(token, str::from_utf8))(input)
+        separated_list1(tag(b"/"), map_res(token, str::from_utf8))(input)
     }
 
     fn transport(input: &[u8]) -> IResult<&[u8], Transport> {
@@ -539,7 +550,7 @@ mod parser {
     }
 
     pub(super) fn transports(input: &[u8]) -> IResult<&[u8], Vec<Transport>> {
-        all_consuming(separated_list1(tag(","), transport))(input)
+        all_consuming(separated_list1(tag(b","), transport))(input)
     }
 }
 

@@ -96,7 +96,7 @@ impl super::TypedHeader for MediaRange {
         let mut ranges = String::new();
         for range in &self.0 {
             if !ranges.is_empty() {
-                ranges.push(',');
+                ranges.push_str(", ");
             }
 
             ranges.push_str(&range.to_string());
@@ -113,7 +113,7 @@ impl super::TypedAppendableHeader for MediaRange {
         let mut ranges = String::new();
         for range in &self.0 {
             if !ranges.is_empty() {
-                ranges.push(',');
+                ranges.push_str(", ");
             }
 
             ranges.push_str(&range.to_string());

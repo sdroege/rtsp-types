@@ -208,7 +208,7 @@ impl super::TypedHeader for Accept {
         let mut media_types = String::new();
         for media_type in &self.0 {
             if !media_types.is_empty() {
-                media_types.push(',');
+                media_types.push_str(", ");
             }
 
             if let Some(ref t) = media_type.type_ {
@@ -246,7 +246,7 @@ impl super::TypedAppendableHeader for Accept {
         let mut media_types = String::new();
         for media_type in &self.0 {
             if !media_types.is_empty() {
-                media_types.push(',');
+                media_types.push_str(", ");
             }
 
             if let Some(ref t) = media_type.type_ {

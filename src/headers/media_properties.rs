@@ -56,7 +56,7 @@ impl fmt::Display for MediaProperty {
                 let mut s = String::new();
                 for scale in scales {
                     if !s.is_empty() {
-                        s.push(',');
+                        s.push_str(", ");
                     }
                     write!(&mut s, "{}", scale).unwrap();
                 }
@@ -326,7 +326,7 @@ impl super::TypedHeader for MediaProperties {
         let mut properties = String::new();
         for property in &self.0 {
             if !properties.is_empty() {
-                properties.push(',');
+                properties.push_str(", ");
             }
 
             properties.push_str(&property.to_string());
@@ -343,7 +343,7 @@ impl super::TypedAppendableHeader for MediaProperties {
         let mut properties = String::new();
         for property in &self.0 {
             if !properties.is_empty() {
-                properties.push(',');
+                properties.push_str(", ");
             }
 
             properties.push_str(&property.to_string());
@@ -392,11 +392,6 @@ mod tests {
         let response2 = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
             .typed_header(&props)
             .empty();
-        let header2 = response2.header(&crate::headers::MEDIA_PROPERTIES).unwrap();
-        // Same as above but without spaces
-        assert_eq!(
-            header2.as_str(),
-            "Random-Access=2.5,Unlimited,Immutable,Scales=\"-20,-10,-4,0.5:1.5,4,8,10,15,20\""
-        );
+        assert_eq!(response, response2);
     }
 }

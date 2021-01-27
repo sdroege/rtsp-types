@@ -80,7 +80,7 @@ impl Headers {
         self.0
             .entry(name)
             .and_modify(|old_value| {
-                old_value.0.push(',');
+                old_value.0.push_str(", ");
                 old_value.0.push_str(&value.0);
             })
             .or_insert(value);

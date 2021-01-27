@@ -148,7 +148,7 @@ impl super::TypedHeader for AcceptRanges {
         let mut ranges = String::new();
         for range in &self.0 {
             if !ranges.is_empty() {
-                ranges.push(',');
+                ranges.push_str(", ");
             }
 
             ranges.push_str(range.as_str());
@@ -165,7 +165,7 @@ impl super::TypedAppendableHeader for AcceptRanges {
         let mut ranges = String::new();
         for range in &self.0 {
             if !ranges.is_empty() {
-                ranges.push(',');
+                ranges.push_str(", ");
             }
 
             ranges.push_str(range.as_str());

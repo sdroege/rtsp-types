@@ -42,7 +42,7 @@ pub use allow::Allow;
 pub use content_length::ContentLength;
 pub use content_type::ContentType;
 pub use cseq::CSeq;
-pub use media_properties::MediaProperty;
+pub use media_properties::{MediaProperties, MediaProperty};
 pub use media_range::MediaRange;
 pub use notify_reason::NotifyReason;
 pub use pipelined_requests::PipelinedRequests;

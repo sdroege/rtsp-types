@@ -30,8 +30,10 @@ pub mod public;
 pub mod range;
 pub mod require;
 pub mod rtp_info;
+pub mod scale;
 pub mod seek_style;
 pub mod session;
+pub mod speed;
 pub mod supported;
 pub mod transport;
 pub mod unsupported;
@@ -50,8 +52,10 @@ pub use public::Public;
 pub use range::{NptRange, NptTime, Range, SmpteRange, SmpteTime, SmpteType, UtcRange, UtcTime};
 pub use require::Require;
 pub use rtp_info::RtpInfos;
+pub use scale::Scale;
 pub use seek_style::SeekStyle;
 pub use session::Session;
+pub use speed::Speed;
 pub use supported::Supported;
 pub use transport::{
     OtherTransport, RtpLowerTransport, RtpProfile, RtpTransport, RtpTransportParameters, Transport,

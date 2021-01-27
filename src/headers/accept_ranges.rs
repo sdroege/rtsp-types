@@ -111,9 +111,9 @@ impl AcceptRanges {
 pub struct AcceptRangesBuilder(Vec<RangeUnit>);
 
 impl AcceptRangesBuilder {
-    /// Add the provided method to the `Accept-Ranges` header.
-    pub fn method(mut self, method: RangeUnit) -> Self {
-        self.0.push(method);
+    /// Add the provided range to the `Accept-Ranges` header.
+    pub fn range(mut self, range: RangeUnit) -> Self {
+        self.0.push(range);
         self
     }
 

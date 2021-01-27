@@ -405,30 +405,42 @@ pub struct TransportParameters(pub BTreeMap<String, Option<String>>);
 mod parser {
     use super::*;
 
+    use super::parser_helpers::{cond_parser, rtsp_unreserved, token, trim};
     use nom::branch::alt;
-    use nom::bytes::complete::{tag, take_while};
-    use nom::character::is_alphanumeric;
-    use nom::combinator::{all_consuming, cond, flat_map, map, map_res, opt};
+    use nom::bytes::complete::tag;
+    use nom::combinator::{all_consuming, map_res};
     use nom::multi::{fold_many0, separated_list1};
     use nom::sequence::{preceded, tuple};
     use nom::{Err, IResult, Needed};
     use std::str;
 
-    fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        fn is_token_char(i: u8) -> bool {
-            is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+    // Check for `"[spaces]/[spaces]"` and return how much to skip
+    fn is_address_list_separator(i: &[u8]) -> Option<usize> {
+        let mut o = i;
+
+        if !o.starts_with(b"\"") {
+            return None;
+        }
+        o = &o[1..];
+
+        while o.starts_with(b" ") || o.starts_with(b"\t") {
+            o = &o[1..];
         }
 
-        take_while(is_token_char)(input)
-    }
+        if !o.starts_with(b"/") {
+            return None;
+        }
+        o = &o[1..];
 
-    fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        fn is_rtsp_unreserved_char(i: u8) -> bool {
-            // rtsp_unreserved
-            is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
+        while o.starts_with(b" ") || o.starts_with(b"\t") {
+            o = &o[1..];
         }
 
-        take_while(is_rtsp_unreserved_char)(input)
+        if o.starts_with(b"\"") {
+            Some(i.len() - o.len() + 1)
+        } else {
+            None
+        }
     }
 
     fn quoted_string_or_address_list(input: &[u8]) -> IResult<&[u8], &[u8]> {
@@ -451,9 +463,9 @@ mod parser {
                 return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
             } else if !o.starts_with(b"\"") {
                 o = &o[1..];
-            } else if o.starts_with(b"\"/\"") {
+            } else if let Some(skip) = is_address_list_separator(o) {
                 // Address list
-                o = &o[3..];
+                o = &o[skip..];
             } else {
                 // Closing quote, also include it
                 o = &o[1..];
@@ -481,26 +493,21 @@ mod parser {
             )));
         }
 
-        map(
-            tuple((
-                map_res(token, str::from_utf8),
-                flat_map(opt(tag(b"=")), |res| {
-                    cond(
-                        res.is_some(),
-                        map_res(
-                            alt((quoted_string_or_address_list, rtsp_unreserved)),
-                            str::from_utf8,
-                        ),
-                    )
-                }),
-            )),
-            |(name, value)| (name, value),
-        )(input)
+        tuple((
+            trim(map_res(token, str::from_utf8)),
+            cond_parser(
+                tag(b"="),
+                trim(map_res(
+                    alt((quoted_string_or_address_list, rtsp_unreserved)),
+                    str::from_utf8,
+                )),
+            ),
+        ))(input)
     }
 
     fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
         fold_many0(
-            preceded(tag(b";"), parameter),
+            preceded(trim(tag(b";")), parameter),
             TransportParameters(BTreeMap::new()),
             |mut acc, (name, value)| {
                 // FIXME: We assume each parameter appears only once
@@ -511,7 +518,7 @@ mod parser {
     }
 
     fn spec(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
-        separated_list1(tag(b"/"), map_res(token, str::from_utf8))(input)
+        separated_list1(tag(b"/"), map_res(trim(token), str::from_utf8))(input)
     }
 
     fn transport(input: &[u8]) -> IResult<&[u8], Transport> {
@@ -708,7 +715,7 @@ impl super::TypedHeader for Transports {
                             if first {
                                 first = false;
                             } else {
-                                transports.push(',');
+                                transports.push_str(", ");
                             }
 
                             transports.push_str(mode.as_str());

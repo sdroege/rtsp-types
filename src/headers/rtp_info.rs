@@ -41,6 +41,8 @@ impl RtpInfos {
 }
 
 pub mod v1 {
+    use super::*;
+
     /// RTP-Info.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct RtpInfo {
@@ -55,22 +57,20 @@ pub mod v1 {
     pub(super) mod parser {
         use super::*;
 
+        use super::parser_helpers::trim;
         use crate::nom_extensions::separated_list1_fold;
         use nom::bytes::complete::{tag, take_while};
-        use nom::combinator::{all_consuming, map, map_parser, map_res};
+        use nom::combinator::{all_consuming, map_parser, map_res};
         use nom::multi::separated_list1;
         use nom::sequence::separated_pair;
-        use nom::{Err, IResult};
+        use nom::IResult;
         use std::str;
 
         fn param(input: &[u8]) -> IResult<&[u8], (&str, &str)> {
-            map(
-                separated_pair(
-                    map_res(take_while(|b| b != b'='), str::from_utf8),
-                    tag("="),
-                    map_res(take_while(|b| b != b';'), str::from_utf8),
-                ),
-                |(name, value)| (name, value),
+            separated_pair(
+                trim(map_res(take_while(|b| b != b'='), str::from_utf8)),
+                tag("="),
+                trim(map_res(take_while(|b| b != b';'), str::from_utf8)),
             )(input)
         }
 
@@ -93,52 +93,22 @@ pub mod v1 {
 
                     acc
                 }),
-                |info| {
-                    let uri = match info.uri {
-                        None => {
-                            return Err(Err::Error(nom::error::Error::new(
-                                input,
-                                nom::error::ErrorKind::Tag,
-                            )));
-                        }
-                        Some(uri) => url::Url::parse(uri).map_err(|err| {
-                            use nom::error::FromExternalError;
-
-                            Err::Error(nom::error::Error::from_external_error(
-                                input,
-                                nom::error::ErrorKind::MapRes,
-                                err,
-                            ))
-                        })?,
-                    };
-
+                |info| -> Result<_, HeaderParseError> {
+                    let uri = info
+                        .uri
+                        .and_then(|uri| url::Url::parse(uri).ok())
+                        .ok_or(HeaderParseError)?;
                     let seq = info
                         .seq
                         .map(|s| s.parse::<u16>())
                         .transpose()
-                        .map_err(|err| {
-                            use nom::error::FromExternalError;
+                        .map_err(|_| HeaderParseError)?;
 
-                            Err::Error(nom::error::Error::from_external_error(
-                                input,
-                                nom::error::ErrorKind::MapRes,
-                                err,
-                            ))
-                        })?;
-
-                    let rtptime =
-                        info.rtptime
-                            .map(|s| s.parse::<u32>())
-                            .transpose()
-                            .map_err(|err| {
-                                use nom::error::FromExternalError;
-
-                                Err::Error(nom::error::Error::from_external_error(
-                                    input,
-                                    nom::error::ErrorKind::MapRes,
-                                    err,
-                                ))
-                            })?;
+                    let rtptime = info
+                        .rtptime
+                        .map(|s| s.parse::<u32>())
+                        .transpose()
+                        .map_err(|_| HeaderParseError)?;
 
                     Ok(RtpInfo { uri, seq, rtptime })
                 },
@@ -182,62 +152,15 @@ pub mod v2 {
     pub(super) mod parser {
         use super::*;
 
+        use super::parser_helpers::{cond_parser, quoted_string, token, trim};
         use crate::nom_extensions::separated_list1_fold;
         use nom::branch::alt;
         use nom::bytes::complete::{tag, take, take_while};
-        use nom::character::is_alphanumeric;
-        use nom::combinator::{all_consuming, cond, flat_map, map, map_res, opt};
-        use nom::multi::separated_list1;
+        use nom::combinator::{all_consuming, map, map_res};
+        use nom::multi::{many1, separated_list1};
         use nom::sequence::tuple;
-        use nom::{Err, IResult, Needed};
+        use nom::{Err, IResult};
         use std::str;
-
-        fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-            fn is_token_char(i: u8) -> bool {
-                is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
-            }
-
-            take_while(is_token_char)(input)
-        }
-
-        fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
-            use std::num::NonZeroUsize;
-
-            if !input.starts_with(b"\"") {
-                return Err(Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Tag,
-                )));
-            }
-
-            let i = &input[1..];
-            let mut o = i;
-
-            while !o.is_empty() {
-                if o.len() >= 2 && o.starts_with(b"\\") {
-                    o = &o[2..];
-                } else if o.starts_with(b"\\") {
-                    return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
-                } else if !o.starts_with(b"\"") {
-                    o = &o[1..];
-                } else {
-                    // Closing quote, also include it
-                    o = &o[1..];
-                    break;
-                }
-            }
-
-            let (fst, snd) = input.split_at(input.len() - o.len());
-            // Did not end with a quote
-            if !fst.ends_with(b"\"") {
-                return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
-            }
-
-            // Must have the starting quote
-            assert!(fst.starts_with(b"\""));
-
-            Ok((snd, fst))
-        }
 
         fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
             if input.is_empty() {
@@ -247,73 +170,48 @@ pub mod v2 {
                 )));
             }
 
-            map(
-                tuple((
-                    map_res(token, str::from_utf8),
-                    flat_map(opt(tag(b"=")), |res| {
-                        cond(
-                            res.is_some(),
-                            map_res(alt((quoted_string, token)), str::from_utf8),
-                        )
-                    }),
-                )),
-                |(name, value)| (name, value),
-            )(input)
+            tuple((
+                trim(map_res(token, str::from_utf8)),
+                cond_parser(
+                    tag(b"="),
+                    trim(map_res(alt((quoted_string, token)), str::from_utf8)),
+                ),
+            ))(input)
         }
 
         fn ssrc_info(input: &[u8]) -> IResult<&[u8], SsrcInfo> {
             map_res(
                 tuple((
-                    tag(b"ssrc="),
+                    trim(tag(b"ssrc")),
+                    trim(tag(b"=")),
                     map_res(map_res(take(8usize), str::from_utf8), |s| {
                         u32::from_str_radix(s, 16)
                     }),
-                    flat_map(opt(tag(b":")), |res| {
-                        cond(
-                            res.is_some(),
-                            separated_list1_fold(
-                                tag(b";"),
-                                param,
-                                BTreeMap::new(),
-                                |mut acc, param| {
-                                    acc.insert(String::from(param.0), param.1.map(String::from));
+                    cond_parser(
+                        trim(tag(b":")),
+                        separated_list1_fold(
+                            tag(b";"),
+                            param,
+                            BTreeMap::new(),
+                            |mut acc, param| {
+                                acc.insert(String::from(param.0), param.1.map(String::from));
 
-                                    acc
-                                },
-                            ),
-                        )
-                    }),
+                                acc
+                            },
+                        ),
+                    ),
                 )),
-                |(_, ssrc, params)| {
+                |(_, _, ssrc, params)| -> Result<_, HeaderParseError> {
                     let mut params = params.unwrap_or_default();
 
                     let seq = if let Some((_, Some(seq))) = params.remove_entry("seq") {
-                        match seq.parse::<u16>() {
-                            Ok(seq) => Some(seq),
-                            Err(err) => {
-                                use nom::error::FromExternalError;
-
-                                return Err(Err::Error(nom::error::Error::from_external_error(
-                                    input,
-                                    nom::error::ErrorKind::MapRes,
-                                    err,
-                                )));
-                            }
-                        }
+                        Some(seq.parse::<u16>().map_err(|_| HeaderParseError)?)
                     } else {
                         None
                     };
 
                     let rtptime = if let Some((_, Some(rtptime))) = params.remove_entry("rtptime") {
-                        Some(rtptime.parse::<u32>().map_err(|err| {
-                            use nom::error::FromExternalError;
-
-                            Err::Error(nom::error::Error::from_external_error(
-                                input,
-                                nom::error::ErrorKind::MapRes,
-                                err,
-                            ))
-                        })?)
+                        Some(rtptime.parse::<u32>().map_err(|_| HeaderParseError)?)
                     } else {
                         None
                     };
@@ -331,15 +229,17 @@ pub mod v2 {
         fn rtp_info(input: &[u8]) -> IResult<&[u8], RtpInfo> {
             map(
                 tuple((
-                    tag(b"url=\""),
-                    map_res(
+                    trim(tag(b"url")),
+                    trim(tag(b"=")),
+                    trim(tag(b"\"")),
+                    trim(map_res(
                         map_res(take_while(|b| b != b'"'), str::from_utf8),
                         url::Url::parse,
-                    ),
-                    tag(b"\" "),
-                    separated_list1(tag(b" "), ssrc_info),
+                    )),
+                    trim(tag(b"\"")),
+                    many1(trim(ssrc_info)),
                 )),
-                |(_, uri, _, ssrc_infos)| RtpInfo { uri, ssrc_infos },
+                |(_, _, _, uri, _, ssrc_infos)| RtpInfo { uri, ssrc_infos },
             )(input)
         }
 
@@ -355,7 +255,33 @@ mod parser {
     use nom::IResult;
 
     pub(super) fn rtp_infos(input: &[u8]) -> IResult<&[u8], RtpInfos> {
-        if input.starts_with(b"url=\"") {
+        fn is_v2_rtpinfo(mut i: &[u8]) -> bool {
+            while i.starts_with(b" ") || i.starts_with(b"\t") {
+                i = &i[1..];
+            }
+
+            if !i.starts_with(b"url") {
+                return false;
+            }
+            i = &i[3..];
+
+            while i.starts_with(b" ") || i.starts_with(b"\t") {
+                i = &i[1..];
+            }
+
+            if !i.starts_with(b"=") {
+                return false;
+            }
+            i = &i[1..];
+
+            while i.starts_with(b" ") || i.starts_with(b"\t") {
+                i = &i[1..];
+            }
+
+            i.starts_with(b"\"")
+        }
+
+        if is_v2_rtpinfo(input) {
             let (rem, infos) = v2::parser::rtp_infos(input)?;
             Ok((rem, RtpInfos::V2(infos)))
         } else {
@@ -482,6 +408,44 @@ mod tests {
                     rtptime: Some(12345678),
                     others: BTreeMap::new()
                 }],
+            }])
+        );
+
+        let response2 = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .typed_header(&infos)
+            .empty();
+
+        assert_eq!(response, response2);
+    }
+
+    #[test]
+    fn test_info_multiple_ssrc() {
+        let header =
+            "url=\"rtsp://example.com/foo/audio\" ssrc=0A13C760:seq=45102;rtptime=12345678 ssrc=9A9DE123:seq=30211;rtptime=29567112";
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
+
+        assert_eq!(
+            infos,
+            RtpInfos::V2(vec![v2::RtpInfo {
+                uri: url::Url::parse("rtsp://example.com/foo/audio").unwrap(),
+                ssrc_infos: vec![
+                    v2::SsrcInfo {
+                        ssrc: 0x0A13C760,
+                        seq: Some(45102),
+                        rtptime: Some(12345678),
+                        others: BTreeMap::new()
+                    },
+                    v2::SsrcInfo {
+                        ssrc: 0x9A9DE123,
+                        seq: Some(30211),
+                        rtptime: Some(29567112),
+                        others: BTreeMap::new()
+                    }
+                ],
             }])
         );
 

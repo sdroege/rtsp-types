@@ -4,6 +4,7 @@
 
 use super::*;
 
+use super::parser_helpers::split_once;
 use std::fmt;
 
 /// `Range` header ([RFC 7826 section 18.40](https://tools.ietf.org/html/rfc7826#section-18.40)).
@@ -501,16 +502,6 @@ impl std::str::FromStr for UtcTime {
             nanoseconds,
         })
     }
-}
-
-// FIXME: Remove once str::split_once is stabilized
-fn split_once(s: &str, d: char) -> Option<(&str, &str)> {
-    let idx = s.find(d)?;
-    let (fst, snd) = s.split_at(idx);
-
-    let (_, snd) = snd.split_at(snd.char_indices().nth(1).map(|(idx, _c)| idx).unwrap_or(1));
-
-    Some((fst, snd))
 }
 
 impl super::TypedHeader for Range {

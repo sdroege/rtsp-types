@@ -149,80 +149,16 @@ impl MediaPropertiesBuilder {
 pub(super) mod parser {
     use super::*;
 
-    // FIXME: Remove once str::split_once is stabilized
-    fn split_once(s: &str, d: char) -> Option<(&str, &str)> {
-        let idx = s.find(d)?;
-        let (fst, snd) = s.split_at(idx);
-
-        let (_, snd) = snd.split_at(snd.char_indices().nth(1).map(|(idx, _c)| idx).unwrap_or(1));
-
-        Some((fst, snd))
-    }
-
+    use super::parser_helpers::{
+        cond_parser, quoted_string, rtsp_unreserved, split_once, token, trim,
+    };
     use nom::branch::alt;
-    use nom::bytes::complete::{tag, take_while};
-    use nom::character::complete::space0;
-    use nom::character::is_alphanumeric;
-    use nom::combinator::{all_consuming, cond, flat_map, map, map_res, opt};
+    use nom::bytes::complete::tag;
+    use nom::combinator::{all_consuming, map_res};
     use nom::multi::separated_list1;
     use nom::sequence::tuple;
-    use nom::{Err, IResult, Needed};
+    use nom::{Err, IResult};
     use std::str;
-
-    fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        fn is_token_char(i: u8) -> bool {
-            is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
-        }
-
-        take_while(is_token_char)(input)
-    }
-
-    fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        fn is_rtsp_unreserved_char(i: u8) -> bool {
-            // rtsp_unreserved
-            is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
-        }
-
-        take_while(is_rtsp_unreserved_char)(input)
-    }
-    fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        use std::num::NonZeroUsize;
-
-        if !input.starts_with(b"\"") {
-            return Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Tag,
-            )));
-        }
-
-        let i = &input[1..];
-        let mut o = i;
-
-        while !o.is_empty() {
-            if o.len() >= 2 && o.starts_with(b"\\") {
-                o = &o[2..];
-            } else if o.starts_with(b"\\") {
-                return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
-            } else if !o.starts_with(b"\"") {
-                o = &o[1..];
-            } else {
-                // Closing quote, also include it
-                o = &o[1..];
-                break;
-            }
-        }
-
-        let (fst, snd) = input.split_at(input.len() - o.len());
-        // Did not end with a quote
-        if !fst.ends_with(b"\"") {
-            return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
-        }
-
-        // Must have the starting quote
-        assert!(fst.starts_with(b"\""));
-
-        Ok((snd, fst))
-    }
 
     fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
         if input.is_empty() {
@@ -232,21 +168,16 @@ pub(super) mod parser {
             )));
         }
 
-        map(
-            tuple((
-                space0,
-                map_res(token, str::from_utf8),
-                space0,
-                flat_map(opt(tag(b"=")), |res| {
-                    cond(
-                        res.is_some(),
-                        map_res(alt((quoted_string, rtsp_unreserved)), str::from_utf8),
-                    )
-                }),
-                space0,
-            )),
-            |(_, name, _, value, _)| (name, value),
-        )(input)
+        tuple((
+            trim(map_res(token, str::from_utf8)),
+            cond_parser(
+                tag(b"="),
+                trim(map_res(
+                    alt((quoted_string, rtsp_unreserved)),
+                    str::from_utf8,
+                )),
+            ),
+        ))(input)
     }
 
     fn media_property(input: &[u8]) -> IResult<&[u8], MediaProperty> {

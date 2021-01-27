@@ -138,18 +138,10 @@ impl AcceptBuilder {
     }
 }
 
-// FIXME: Remove once str::split_once is stabilized
-fn split_once(s: &str, d: char) -> Option<(&str, &str)> {
-    let idx = s.find(d)?;
-    let (fst, snd) = s.split_at(idx);
-
-    let (_, snd) = snd.split_at(snd.char_indices().nth(1).map(|(idx, _c)| idx).unwrap_or(1));
-
-    Some((fst, snd))
-}
-
 impl super::TypedHeader for Accept {
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
+        use super::parser_helpers::split_once;
+
         let headers = headers.as_ref();
 
         let header = match headers.get(&ACCEPT) {

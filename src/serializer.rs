@@ -28,6 +28,8 @@ fn method<W: Write>(method: MethodRef<'_>) -> impl SerializeFn<W> + '_ {
         MethodRef::Redirect => string("REDIRECT")(out),
         MethodRef::Setup => string("SETUP")(out),
         MethodRef::SetParameter => string("SET_PARAMETER")(out),
+        MethodRef::Announce => string("ANNOUNCE")(out),
+        MethodRef::Record => string("RECORD")(out),
         MethodRef::Teardown => string("TEARDOWN")(out),
         MethodRef::Extension(s) => string(s)(out),
     }

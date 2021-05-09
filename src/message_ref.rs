@@ -68,6 +68,8 @@ pub enum MethodRef<'a> {
     Redirect,
     Setup,
     SetParameter,
+    Announce,
+    Record,
     Teardown,
     Extension(&'a str),
 }
@@ -84,6 +86,8 @@ impl<'a> MethodRef<'a> {
             MethodRef::Redirect => Method::Redirect,
             MethodRef::Setup => Method::Setup,
             MethodRef::SetParameter => Method::SetParameter,
+            MethodRef::Announce => Method::Announce,
+            MethodRef::Record => Method::Record,
             MethodRef::Teardown => Method::Teardown,
             MethodRef::Extension(s) => Method::Extension(s.into()),
         }
@@ -102,6 +106,8 @@ impl<'a> From<&'a str> for MethodRef<'a> {
             "REDIRECT" => MethodRef::Redirect,
             "SETUP" => MethodRef::Setup,
             "SET_PARAMETER" => MethodRef::SetParameter,
+            "ANNOUNCE" => MethodRef::Announce,
+            "RECORD" => MethodRef::Record,
             "TEARDOWN" => MethodRef::Teardown,
             v => MethodRef::Extension(v),
         }
@@ -120,6 +126,8 @@ impl<'a> From<&'a MethodRef<'a>> for &'a str {
             MethodRef::Redirect => "REDIRECT",
             MethodRef::Setup => "SETUP",
             MethodRef::SetParameter => "SET_PARAMETER",
+            MethodRef::Announce => "ANNOUNCE",
+            MethodRef::Record => "RECORD",
             MethodRef::Teardown => "TEARDOWN",
             MethodRef::Extension(v) => v,
         }

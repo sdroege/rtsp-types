@@ -159,6 +159,10 @@ pub enum Method {
     Setup,
     /// Set parameter
     SetParameter,
+    /// Announce (only RTSP 1.0)
+    Announce,
+    /// Record (only RTSP 1.0)
+    Record,
     /// Teardown
     Teardown,
     /// Extension method
@@ -177,6 +181,8 @@ impl Method {
             Method::Redirect => MethodRef::Redirect,
             Method::Setup => MethodRef::Setup,
             Method::SetParameter => MethodRef::SetParameter,
+            Method::Announce => MethodRef::Announce,
+            Method::Record => MethodRef::Record,
             Method::Teardown => MethodRef::Teardown,
             Method::Extension(s) => MethodRef::Extension(&s),
         }
@@ -203,6 +209,8 @@ impl<'a> From<&'a Method> for &'a str {
             Method::Redirect => "REDIRECT",
             Method::Setup => "SETUP",
             Method::SetParameter => "SET_PARAMETER",
+            Method::Announce => "ANNOUNCE",
+            Method::Record => "RECORD",
             Method::Teardown => "TEARDOWN",
             Method::Extension(ref v) => v,
         }

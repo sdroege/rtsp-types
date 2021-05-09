@@ -154,7 +154,7 @@ fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef; 16]>> {
 fn body(headers: &[HeaderRef]) -> impl for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
     let content_length = headers
         .iter()
-        .find(|h| h.name == "Content-Length")
+        .find(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
         .map(|h| str::parse::<u64>(&h.value).unwrap())
         .unwrap_or(0);
 

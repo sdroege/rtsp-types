@@ -79,7 +79,7 @@ fn request_line(input: &[u8]) -> IResult<&[u8], RequestLine> {
 }
 
 fn from_digit(input: &str) -> Result<u16, std::num::ParseIntError> {
-    u16::from_str_radix(input, 10)
+    str::parse::<u16>(input)
 }
 
 fn status_line(input: &[u8]) -> IResult<&[u8], StatusLine> {

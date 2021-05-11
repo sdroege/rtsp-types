@@ -125,7 +125,7 @@ mod serializer;
 pub mod headers;
 pub use headers::{HeaderName, HeaderValue, Headers};
 
-pub use url::Url;
+pub use url::{Host, Url};
 
 use std::fmt;
 use tinyvec::TinyVec;

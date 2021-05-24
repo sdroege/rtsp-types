@@ -155,7 +155,7 @@ fn body(headers: &[HeaderRef]) -> impl for<'a> Fn(&'a [u8]) -> IResult<&'a [u8],
     let content_length = headers
         .iter()
         .find(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
-        .map(|h| str::parse::<u64>(&h.value).unwrap())
+        .map(|h| str::parse::<usize>(&h.value).unwrap())
         .unwrap_or(0);
 
     move |input| take(content_length)(input)

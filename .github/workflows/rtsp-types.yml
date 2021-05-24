@@ -57,3 +57,25 @@ jobs:
     - name: Run tests
       run: |
         cargo test
+
+  armv7-build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        toolchain: [stable, beta, nightly]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install ${{ matrix.toolchain }}
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ matrix.toolchain }}
+        target: armv7-unknown-linux-gnueabihf
+        override: true
+
+    - name: Build
+      run: |
+        cargo build --target=armv7-unknown-linux-gnueabihf

@@ -151,20 +151,28 @@ fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef; 16]>> {
     terminated(many0_tinyvec(message_header), crlf)(input)
 }
 
-fn body(headers: &[HeaderRef]) -> impl for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
-    let content_length = headers
+fn content_length<'a>(
+    headers: &[HeaderRef<'a>],
+) -> Result<usize, nom::Err<nom::error::Error<&'a [u8]>>> {
+    if let Some(h) = headers
         .iter()
         .find(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
-        .map(|h| str::parse::<usize>(&h.value).unwrap())
-        .unwrap_or(0);
-
-    move |input| take(content_length)(input)
+    {
+        return str::parse::<usize>(&h.value).map_err(|_| {
+            nom::Err::Failure(nom::error::Error::new(
+                h.value.as_bytes(),
+                nom::error::ErrorKind::MapRes,
+            ))
+        });
+    }
+    Ok(0)
 }
 
 fn request(input: &[u8]) -> IResult<&[u8], RequestRef> {
     let (input, request_line) = request_line(input)?;
     let (input, headers) = headers(input)?;
-    let (input, body) = body(&headers)(input)?;
+    let content_length = content_length(&headers)?;
+    let (input, body) = take(content_length)(input)?;
 
     Ok((
         input,
@@ -181,7 +189,8 @@ fn request(input: &[u8]) -> IResult<&[u8], RequestRef> {
 fn response(input: &[u8]) -> IResult<&[u8], ResponseRef> {
     let (input, status_line) = status_line(input)?;
     let (input, headers) = headers(input)?;
-    let (input, body) = body(&headers)(input)?;
+    let content_length = content_length(&headers)?;
+    let (input, body) = take(content_length)(input)?;
 
     Ok((
         input,
@@ -528,6 +537,23 @@ REMAINDER"
                 }
             ))
         );
+    }
+
+    #[test]
+    fn test_bad_content_length() {
+        assert!(matches!(
+            response(
+                b"RTSP/2.0 200 All Good\r\n\
+CSeq: 1\r\n\
+Supported: play.basic, play.scale\r\n\
+User-Agent: PhonyClient/1.2\r\n\
+Content-Length: bad\r\n\
+\r\n\
+0123456789\
+REMAINDER"
+            ),
+            Err(nom::Err::Failure(_))
+        ));
     }
 
     #[test]

@@ -508,7 +508,7 @@ mod parser {
     fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
         fold_many0(
             preceded(trim(tag(b";")), parameter),
-            TransportParameters(BTreeMap::new()),
+            || TransportParameters(BTreeMap::new()),
             |mut acc, (name, value)| {
                 // FIXME: We assume each parameter appears only once
                 acc.0.insert(name.into(), value.map(String::from));

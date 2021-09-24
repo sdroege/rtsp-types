@@ -11,7 +11,7 @@ description = "RTSP (RFC 7826) types, parser and serializer"
 readme = "README.md"
 
 [dependencies]
-nom = "6.0"
+nom = "7.0"
 cookie-factory = "0.3"
 tinyvec = "1.0"
 url = "2.0"

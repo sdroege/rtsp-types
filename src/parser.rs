@@ -215,7 +215,7 @@ fn data(input: &[u8]) -> IResult<&[u8], DataRef> {
 }
 
 pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef> {
-    flat_map(fold_many0(crlf, (), |_acc, _item| ()), |_| {
+    flat_map(fold_many0(crlf, || (), |_acc, _item| ()), |_| {
         alt((
             map(data, MessageRef::Data),
             map(request, MessageRef::Request),

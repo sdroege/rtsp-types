@@ -82,7 +82,7 @@ impl RtpProfile {
             RtpProfile::AvpF => "AVPF",
             RtpProfile::SAvp => "SAVP",
             RtpProfile::SAvpF => "SAVPF",
-            RtpProfile::Other(other) => &other,
+            RtpProfile::Other(other) => other,
         }
     }
 }
@@ -338,7 +338,7 @@ impl RtpLowerTransport {
         match self {
             RtpLowerTransport::Tcp => "TCP",
             RtpLowerTransport::Udp => "UDP",
-            RtpLowerTransport::Other(other) => &other,
+            RtpLowerTransport::Other(other) => other,
         }
     }
 }
@@ -376,7 +376,7 @@ impl TransportMode {
         match self {
             TransportMode::Play => "PLAY",
             TransportMode::Record => "RECORD",
-            TransportMode::Other(other) => &other,
+            TransportMode::Other(other) => other,
         }
     }
 }

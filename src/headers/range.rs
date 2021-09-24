@@ -271,7 +271,7 @@ impl fmt::Display for SmpteType {
             SmpteType::Smpte => f.write_str("smpte"),
             SmpteType::Smpte30Drop => f.write_str("smpte-30-drop"),
             SmpteType::Smpte25 => f.write_str("smpte-25"),
-            SmpteType::Other(o) => f.write_str(&o),
+            SmpteType::Other(o) => f.write_str(o),
         }
     }
 }

@@ -158,7 +158,7 @@ fn content_length<'a>(
         .iter()
         .find(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
     {
-        return str::parse::<usize>(&h.value).map_err(|_| {
+        return str::parse::<usize>(h.value).map_err(|_| {
             nom::Err::Failure(nom::error::Error::new(
                 h.value.as_bytes(),
                 nom::error::ErrorKind::MapRes,

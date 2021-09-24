@@ -102,7 +102,7 @@ impl Headers {
 
     /// Removes and RTSP header if it exists.
     pub fn remove(&mut self, name: &HeaderName) {
-        self.0.remove(&name);
+        self.0.remove(name);
     }
 
     /// Gets an RTSP header value if it exists.

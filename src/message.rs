@@ -184,7 +184,7 @@ impl Method {
             Method::Announce => MethodRef::Announce,
             Method::Record => MethodRef::Record,
             Method::Teardown => MethodRef::Teardown,
-            Method::Extension(s) => MethodRef::Extension(&s),
+            Method::Extension(s) => MethodRef::Extension(s),
         }
     }
 }

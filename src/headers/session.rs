@@ -58,7 +58,7 @@ impl super::TypedHeader for Session {
 
         let session_id = iter.next().ok_or(HeaderParseError)?;
         let timeout = iter
-            .next()
+            .find_map(|s| s.strip_prefix("timeout="))
             .map(|s| s.parse::<u64>())
             .transpose()
             .map_err(|_| HeaderParseError)?;
@@ -73,6 +73,121 @@ impl super::TypedHeader for Session {
             headers.insert(SESSION, format!("{};timeout={}", self.0, timeout));
         } else {
             headers.insert(SESSION, self.0.to_string());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_headers() {
+        let strict_headers = [
+            ("12345678", Some(Session("12345678".to_string(), None))),
+            (
+                "12345678;timeout=60",
+                Some(Session("12345678".to_string(), Some(60))),
+            ),
+            (
+                "lskdjf238742dkjlskjd;timeout=60",
+                Some(Session("lskdjf238742dkjlskjd".to_string(), Some(60))),
+            ),
+            (
+                "alskdjalskjdalskjdalksjd;timeout=60",
+                Some(Session("alskdjalskjdalskjdalksjd".to_string(), Some(60))),
+            ),
+        ];
+
+        let loose_headers = [
+            (
+                "12345678;timeout=60;special",
+                Some(Session("12345678".to_string(), Some(60))),
+            ),
+            (
+                "12345678;timeout=60;393939393",
+                Some(Session("12345678".to_string(), Some(60))),
+            ),
+            (
+                "12345678;timeout=60;393;93;93;93",
+                Some(Session("12345678".to_string(), Some(60))),
+            ),
+            (
+                "12345678;special;timeout=600",
+                Some(Session("12345678".to_string(), Some(600))),
+            ),
+            (
+                "12345678;extra;extra;extra;timeout=600",
+                Some(Session("12345678".to_string(), Some(600))),
+            ),
+            (
+                "wjdl38ek98;timeout=60;special",
+                Some(Session("wjdl38ek98".to_string(), Some(60))),
+            ),
+            (
+                "wjdl38ek98;timeout=60;393939393",
+                Some(Session("wjdl38ek98".to_string(), Some(60))),
+            ),
+            (
+                "wjdl38ek98;timeout=60;393;93;93;93",
+                Some(Session("wjdl38ek98".to_string(), Some(60))),
+            ),
+            (
+                "wjdl38ek98;special;timeout=600",
+                Some(Session("wjdl38ek98".to_string(), Some(600))),
+            ),
+            (
+                "wjdl38ek98;extra;extra;extra;timeout=600",
+                Some(Session("wjdl38ek98".to_string(), Some(600))),
+            ),
+        ];
+
+        let bad_headers = [
+            "12345678;timeout=aa",
+            "12345678;timeout=a6a",
+            "12345678;timeout=!!!",
+            "12345678;timeout=18446744073709551616",
+            "12345678;timeout=18446744073709551616;special",
+            "12345678;special;timeout=18446744073709551616",
+            "12345678;timeout=-1",
+            "12345678;timeout=-2",
+        ];
+
+        let not_session_headers = [(AUTHORIZATION, "blah"), (ACCEPT, "application/sdp")];
+
+        for (header, expected) in strict_headers {
+            let mut test_headers = Headers::new();
+            test_headers.insert(SESSION, header);
+            let from_headers_result =
+                Session::from_headers(test_headers).expect("strict_headers should not error");
+
+            assert_eq!(from_headers_result, expected, "{}", header);
+        }
+
+        for (header, expected) in loose_headers {
+            let mut test_headers = Headers::new();
+            test_headers.insert(SESSION, header);
+            let from_headers_result =
+                Session::from_headers(test_headers).expect("loose_errors should not error");
+
+            assert_eq!(from_headers_result, expected, "{}", header);
+        }
+
+        for header in bad_headers {
+            let mut test_headers = Headers::new();
+            test_headers.insert(SESSION, header);
+
+            Session::from_headers(test_headers)
+                .expect_err("bad_headers should all give HeaderParserErrors");
+        }
+
+        for (header, value) in not_session_headers {
+            let mut test_headers = Headers::new();
+            test_headers.insert(header.clone(), value.clone());
+            let from_headers_result =
+                Session::from_headers(test_headers).expect("not_session_headers should not error");
+
+            assert_eq!(from_headers_result, None, "{}:{}", header, value);
         }
     }
 }

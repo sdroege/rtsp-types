@@ -52,6 +52,7 @@ impl<'a> From<&'a [Transport]> for Transports {
 
 /// Transport.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[allow(clippy::large_enum_variant)]
 pub enum Transport {
     /// RTP media transport.
     Rtp(RtpTransport),

@@ -6,7 +6,7 @@
 
 use super::*;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum MessageRef<'a> {
     Request(RequestRef<'a>),
     Response(ResponseRef<'a>),
@@ -57,7 +57,7 @@ impl<'a> MessageRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum MethodRef<'a> {
     Describe,
     GetParameter,
@@ -134,7 +134,7 @@ impl<'a> From<&'a MethodRef<'a>> for &'a str {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRef<'a> {
     pub(crate) method: MethodRef<'a>,
     pub(crate) request_uri: Option<&'a str>,
@@ -204,14 +204,14 @@ impl<'a> RequestRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct RequestLine<'a> {
     pub(crate) method: MethodRef<'a>,
     pub(crate) request_uri: Option<&'a str>,
     pub(crate) version: Version,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ResponseRef<'a> {
     pub(crate) version: Version,
     pub(crate) status: StatusCode,
@@ -277,14 +277,14 @@ impl<'a> ResponseRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct StatusLine<'a> {
     pub(crate) version: Version,
     pub(crate) status: StatusCode,
     pub(crate) reason_phrase: &'a str,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DataRef<'a> {
     pub(crate) channel_id: u8,
     pub(crate) body: &'a [u8],
@@ -355,7 +355,7 @@ impl<'a> AsRef<[u8]> for DataRef<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct HeaderRef<'a> {
     pub(crate) name: &'a str,
     pub(crate) value: &'a str,
@@ -375,14 +375,5 @@ impl<'a> HeaderRef<'a> {
     #[allow(dead_code)]
     pub fn set_value(&mut self, value: &'a str) {
         self.value = value;
-    }
-}
-
-impl<'a> Default for HeaderRef<'a> {
-    fn default() -> Self {
-        HeaderRef {
-            name: "",
-            value: "",
-        }
     }
 }

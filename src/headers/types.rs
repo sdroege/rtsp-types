@@ -207,7 +207,7 @@ impl<'a> TryFrom<&'a str> for HeaderName {
 ///
 /// This takes ownership of the passed in `String` and does not involve an additional heap
 /// allocation.
-impl<'a> TryFrom<String> for HeaderName {
+impl TryFrom<String> for HeaderName {
     type Error = AsciiError;
 
     fn try_from(v: String) -> Result<HeaderName, AsciiError> {
@@ -358,7 +358,7 @@ impl<'a> TryFrom<&'a [u8]> for HeaderValue {
     }
 }
 
-impl<'a> TryFrom<Vec<u8>> for HeaderValue {
+impl TryFrom<Vec<u8>> for HeaderValue {
     type Error = Utf8Error;
 
     fn try_from(v: Vec<u8>) -> Result<HeaderValue, Utf8Error> {

@@ -166,8 +166,7 @@ impl std::str::FromStr for NptTime {
                 let mut it = s.split(':');
                 let minutes = it
                     .next()
-                    .map(|s| s.parse::<u8>().ok())
-                    .flatten()
+                    .and_then(|s| s.parse::<u8>().ok())
                     .ok_or(HeaderParseError)?;
                 let seconds = it.next().ok_or(HeaderParseError)?;
 
@@ -333,18 +332,15 @@ impl std::str::FromStr for SmpteTime {
 
         let hours = s
             .next()
-            .map(|s| s.parse::<u8>().ok())
-            .flatten()
+            .and_then(|s| s.parse::<u8>().ok())
             .ok_or(HeaderParseError)?;
         let minutes = s
             .next()
-            .map(|s| s.parse::<u8>().ok())
-            .flatten()
+            .and_then(|s| s.parse::<u8>().ok())
             .ok_or(HeaderParseError)?;
         let seconds = s
             .next()
-            .map(|s| s.parse::<u8>().ok())
-            .flatten()
+            .and_then(|s| s.parse::<u8>().ok())
             .ok_or(HeaderParseError)?;
 
         let frames = match s.next() {

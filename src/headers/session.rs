@@ -183,7 +183,7 @@ mod tests {
 
         for (header, value) in not_session_headers {
             let mut test_headers = Headers::new();
-            test_headers.insert(header.clone(), value.clone());
+            test_headers.insert(header.clone(), value);
             let from_headers_result =
                 Session::from_headers(test_headers).expect("not_session_headers should not error");
 

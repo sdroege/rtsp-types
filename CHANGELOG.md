@@ -7,6 +7,11 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.0.4]- 2022-10-27
+
+### Fixed
+- Parsing of the optional timeout field of the `Session` header.
+
 ## [0.0.3]- 2021-09-24
 ### Changed
 - Updated to nom 7.
@@ -24,6 +29,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.0.3...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.0.4...HEAD
+[0.0.4]: https://github.com/sdroege/rtsp-types/compare/0.0.3...0.0.4
 [0.0.3]: https://github.com/sdroege/rtsp-types/compare/0.0.2...0.0.3
 [0.0.2]: https://github.com/sdroege/rtsp-types/compare/0.0.1...0.0.2

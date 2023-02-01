@@ -126,7 +126,25 @@ fn header_value(i: &[u8]) -> IResult<&[u8], &[u8]> {
             o = &o[1..];
         } else {
             // Not a header character
-            let (res, rem) = i.split_at(i.len() - o.len());
+            let (mut res, rem) = i.split_at(i.len() - o.len());
+
+            // trim trailing and leading whitespace from header
+            // Replace with once stabilized (rust-lang/rust#94035):
+            //   res = res.trim_ascii();
+            while let [first, rest @ ..] = res {
+                if first.is_ascii_whitespace() {
+                    res = rest;
+                } else {
+                    break;
+                }
+            }
+            while let [rest @ .., last] = res {
+                if last.is_ascii_whitespace() {
+                    res = rest;
+                } else {
+                    break;
+                }
+            }
             return Ok((rem, res));
         }
     }
@@ -320,6 +338,30 @@ mod tests {
 CSeq: 1\r\n\
 Supported: play.basic,\r\n play.scale\r\n\
 User-Agent: PhonyClient/1.2\r\n\
+\r\n\
+REMAINDER"
+            )
+            .map(|(rem, req)| (rem, RequestRef::to_owned(&req).unwrap())),
+            Ok((
+                &b"REMAINDER"[..],
+                Request::builder(Method::Options, Version::V2_0)
+                    .request_uri(Url::parse("rtsp://media.example.com/movie/twister.3gp").unwrap())
+                    .header(crate::headers::CSEQ, "1")
+                    .header(crate::headers::SUPPORTED, "play.basic, play.scale")
+                    .header(crate::headers::USER_AGENT, "PhonyClient/1.2")
+                    .build(vec![])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_trailing_whitespace() {
+        assert_eq!(
+            request(
+                b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
+CSeq: 1 \r\n\
+Supported: \tplay.basic,\r\n play.scale\r\n\
+User-Agent: PhonyClient/1.2\t\r\n\
 \r\n\
 REMAINDER"
             )

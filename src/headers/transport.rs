@@ -609,15 +609,15 @@ impl super::TypedHeader for Transports {
 
                     if let Some((channel_start, channel_end)) = &rtp.params.interleaved {
                         transports.push(';');
-                        write!(&mut transports, "interleaved={}", channel_start).unwrap();
+                        write!(&mut transports, "interleaved={channel_start}").unwrap();
                         if let Some(channel_end) = channel_end {
-                            write!(&mut transports, "-{}", channel_end).unwrap();
+                            write!(&mut transports, "-{channel_end}").unwrap();
                         }
                     }
 
                     if let Some(ttl) = rtp.params.ttl {
                         transports.push(';');
-                        write!(&mut transports, "ttl={}", ttl).unwrap();
+                        write!(&mut transports, "ttl={ttl}").unwrap();
                     }
 
                     if !rtp.params.ssrc.is_empty() {
@@ -632,7 +632,7 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
-                            write!(&mut transports, "{:08X}", ssrc).unwrap();
+                            write!(&mut transports, "{ssrc:08X}").unwrap();
                         }
                     }
 
@@ -648,7 +648,7 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
-                            write!(&mut transports, "\"{}\"", addr).unwrap()
+                            write!(&mut transports, "\"{addr}\"").unwrap()
                         }
                     }
 
@@ -664,7 +664,7 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
-                            write!(&mut transports, "\"{}\"", addr).unwrap()
+                            write!(&mut transports, "\"{addr}\"").unwrap()
                         }
                     }
 
@@ -675,36 +675,36 @@ impl super::TypedHeader for Transports {
 
                     if let Some((port_start, port_end)) = rtp.params.port {
                         transports.push(';');
-                        write!(&mut transports, "port={}", port_start).unwrap();
+                        write!(&mut transports, "port={port_start}").unwrap();
                         if let Some(port_end) = port_end {
-                            write!(&mut transports, "-{}", port_end).unwrap();
+                            write!(&mut transports, "-{port_end}").unwrap();
                         }
                     }
 
                     if let Some((port_start, port_end)) = rtp.params.client_port {
                         transports.push(';');
-                        write!(&mut transports, "client_port={}", port_start).unwrap();
+                        write!(&mut transports, "client_port={port_start}").unwrap();
                         if let Some(port_end) = port_end {
-                            write!(&mut transports, "-{}", port_end).unwrap();
+                            write!(&mut transports, "-{port_end}").unwrap();
                         }
                     }
 
                     if let Some((port_start, port_end)) = rtp.params.server_port {
                         transports.push(';');
-                        write!(&mut transports, "server_port={}", port_start).unwrap();
+                        write!(&mut transports, "server_port={port_start}").unwrap();
                         if let Some(port_end) = port_end {
-                            write!(&mut transports, "-{}", port_end).unwrap();
+                            write!(&mut transports, "-{port_end}").unwrap();
                         }
                     }
 
                     if let Some(ref destination) = rtp.params.destination {
                         transports.push(';');
-                        write!(&mut transports, "destination={}", destination).unwrap();
+                        write!(&mut transports, "destination={destination}").unwrap();
                     }
 
                     if let Some(ref source) = rtp.params.source {
                         transports.push(';');
-                        write!(&mut transports, "source={}", source).unwrap();
+                        write!(&mut transports, "source={source}").unwrap();
                     }
 
                     if !rtp.params.mode.is_empty() {
@@ -734,7 +734,7 @@ impl super::TypedHeader for Transports {
                         transports.push(';');
 
                         if let Some(value) = value {
-                            write!(&mut transports, "{}={}", name, value).unwrap();
+                            write!(&mut transports, "{name}={value}").unwrap();
                         } else {
                             transports.push_str(name);
                         }
@@ -747,7 +747,7 @@ impl super::TypedHeader for Transports {
                         transports.push(';');
 
                         if let Some(value) = value {
-                            write!(&mut transports, "{}={}", name, value).unwrap();
+                            write!(&mut transports, "{name}={value}").unwrap();
                         } else {
                             transports.push_str(name);
                         }

@@ -464,7 +464,7 @@ impl fmt::Display for StatusCode {
             StatusCode::RTSPVersionNotSupported => write!(fmt, "RTSP Version Not Supported"),
             StatusCode::OptionNotSupported => write!(fmt, "Option Not Supported"),
             StatusCode::ProxyUnavailable => write!(fmt, "Proxy Unavailable"),
-            StatusCode::Extension(v) => write!(fmt, "Extension {}", v),
+            StatusCode::Extension(v) => write!(fmt, "Extension {v}"),
         }
     }
 }
@@ -522,7 +522,7 @@ impl std::error::Error for WriteError {
 impl std::fmt::Display for WriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
-            WriteError::IoError(ref error) => write!(f, "Write IO error: {}", error),
+            WriteError::IoError(ref error) => write!(f, "Write IO error: {error}"),
         }
     }
 }

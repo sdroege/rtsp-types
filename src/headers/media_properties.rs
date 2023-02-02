@@ -42,7 +42,7 @@ impl fmt::Display for MediaProperty {
         use fmt::Write;
 
         match self {
-            MediaProperty::RandomAccess(Some(dur)) => write!(f, "Random-Access={}", dur),
+            MediaProperty::RandomAccess(Some(dur)) => write!(f, "Random-Access={dur}"),
             MediaProperty::RandomAccess(None) => f.write_str("Random-Access"),
             MediaProperty::BeginningOnly => f.write_str("Beginning-Only"),
             MediaProperty::NoSeeking => f.write_str("No-Seeking"),
@@ -50,19 +50,19 @@ impl fmt::Display for MediaProperty {
             MediaProperty::Dynamic => f.write_str("Dynamic"),
             MediaProperty::TimeProgressing => f.write_str("Time-Progressing"),
             MediaProperty::Unlimited => f.write_str("Unlimited"),
-            MediaProperty::TimeLimited(time) => write!(f, "Time-Limited={}", time),
-            MediaProperty::TimeDuration(dur) => write!(f, "Time-Duration={}", dur),
+            MediaProperty::TimeLimited(time) => write!(f, "Time-Limited={time}"),
+            MediaProperty::TimeDuration(dur) => write!(f, "Time-Duration={dur}"),
             MediaProperty::Scales(scales) => {
                 let mut s = String::new();
                 for scale in scales {
                     if !s.is_empty() {
                         s.push_str(", ");
                     }
-                    write!(&mut s, "{}", scale).unwrap();
+                    write!(&mut s, "{scale}").unwrap();
                 }
-                write!(f, "Scales=\"{}\"", s)
+                write!(f, "Scales=\"{s}\"")
             }
-            MediaProperty::Extension(key, Some(value)) => write!(f, "{}={}", key, value),
+            MediaProperty::Extension(key, Some(value)) => write!(f, "{key}={value}"),
             MediaProperty::Extension(key, None) => f.write_str(key),
         }
     }
@@ -78,8 +78,8 @@ pub enum ScaleRange {
 impl fmt::Display for ScaleRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScaleRange::Scale(scale) => write!(f, "{}", scale),
-            ScaleRange::Range(a, b) => write!(f, "{}:{}", a, b),
+            ScaleRange::Scale(scale) => write!(f, "{scale}"),
+            ScaleRange::Range(a, b) => write!(f, "{a}:{b}"),
         }
     }
 }

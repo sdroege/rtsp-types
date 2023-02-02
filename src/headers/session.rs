@@ -161,7 +161,7 @@ mod tests {
             let from_headers_result =
                 Session::from_headers(test_headers).expect("strict_headers should not error");
 
-            assert_eq!(from_headers_result, expected, "{}", header);
+            assert_eq!(from_headers_result, expected, "{header}");
         }
 
         for (header, expected) in loose_headers {
@@ -170,7 +170,7 @@ mod tests {
             let from_headers_result =
                 Session::from_headers(test_headers).expect("loose_errors should not error");
 
-            assert_eq!(from_headers_result, expected, "{}", header);
+            assert_eq!(from_headers_result, expected, "{header}");
         }
 
         for header in bad_headers {
@@ -187,7 +187,7 @@ mod tests {
             let from_headers_result =
                 Session::from_headers(test_headers).expect("not_session_headers should not error");
 
-            assert_eq!(from_headers_result, None, "{}:{}", header, value);
+            assert_eq!(from_headers_result, None, "{header}:{value}");
         }
     }
 }

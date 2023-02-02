@@ -7,6 +7,10 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.0.5]- 2023-02-02
+### Fixed
+- Trim whitespace from header values in accordance to RFC9110.
+
 ## [0.0.4]- 2022-10-27
 
 ### Fixed
@@ -29,7 +33,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.0.4...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.0.5...HEAD
+[0.0.5]: https://github.com/sdroege/rtsp-types/compare/0.0.4...0.0.5
 [0.0.4]: https://github.com/sdroege/rtsp-types/compare/0.0.3...0.0.4
 [0.0.3]: https://github.com/sdroege/rtsp-types/compare/0.0.2...0.0.3
 [0.0.2]: https://github.com/sdroege/rtsp-types/compare/0.0.1...0.0.2

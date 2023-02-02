@@ -204,7 +204,7 @@ impl super::TypedHeader for Accept {
             }
 
             if let Some(ref t) = media_type.type_ {
-                write!(&mut media_types, "{}", t).unwrap();
+                write!(&mut media_types, "{t}").unwrap();
             } else {
                 media_types.push('*');
             }
@@ -242,7 +242,7 @@ impl super::TypedAppendableHeader for Accept {
             }
 
             if let Some(ref t) = media_type.type_ {
-                write!(&mut media_types, "{}", t).unwrap();
+                write!(&mut media_types, "{t}").unwrap();
             } else {
                 media_types.push('*');
             }

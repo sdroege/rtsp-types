@@ -64,9 +64,9 @@ impl fmt::Display for NptRange {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NptRange::Empty => fmt.write_str("npt"),
-            NptRange::From(f) => write!(fmt, "npt={}-", f),
-            NptRange::FromTo(f, t) => write!(fmt, "npt={}-{}", f, t),
-            NptRange::To(t) => write!(fmt, "npt=-{}", t),
+            NptRange::From(f) => write!(fmt, "npt={f}-"),
+            NptRange::FromTo(f, t) => write!(fmt, "npt={f}-{t}"),
+            NptRange::To(t) => write!(fmt, "npt=-{t}"),
         }
     }
 }
@@ -118,18 +118,16 @@ impl fmt::Display for NptTime {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NptTime::Now => fmt.write_str("now"),
-            NptTime::Seconds(seconds, None) => write!(fmt, "{}", seconds),
+            NptTime::Seconds(seconds, None) => write!(fmt, "{seconds}"),
             NptTime::Seconds(seconds, Some(nanoseconds)) => {
-                write!(fmt, "{}.{:09}", seconds, nanoseconds)
+                write!(fmt, "{seconds}.{nanoseconds:09}")
             }
             NptTime::Hms(hours, minutes, seconds, None) => {
-                write!(fmt, "{:02}:{:02}:{:02}", hours, minutes, seconds)
+                write!(fmt, "{hours:02}:{minutes:02}:{seconds:02}")
             }
-            NptTime::Hms(hours, minutes, seconds, Some(nanoseconds)) => write!(
-                fmt,
-                "{:02}:{:02}:{:02}.{:09}",
-                hours, minutes, seconds, nanoseconds
-            ),
+            NptTime::Hms(hours, minutes, seconds, Some(nanoseconds)) => {
+                write!(fmt, "{hours:02}:{minutes:02}:{seconds:02}.{nanoseconds:09}")
+            }
         }
     }
 }
@@ -207,10 +205,10 @@ pub enum SmpteRange {
 impl fmt::Display for SmpteRange {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SmpteRange::Empty(ty) => write!(fmt, "{}", ty),
-            SmpteRange::From(ty, f) => write!(fmt, "{}={}-", ty, f),
-            SmpteRange::FromTo(ty, f, t) => write!(fmt, "{}={}-{}", ty, f, t),
-            SmpteRange::To(ty, t) => write!(fmt, "{}=-{}", ty, t),
+            SmpteRange::Empty(ty) => write!(fmt, "{ty}"),
+            SmpteRange::From(ty, f) => write!(fmt, "{ty}={f}-"),
+            SmpteRange::FromTo(ty, f, t) => write!(fmt, "{ty}={f}-{t}"),
+            SmpteRange::To(ty, t) => write!(fmt, "{ty}=-{t}"),
         }
     }
 }
@@ -407,9 +405,9 @@ impl fmt::Display for UtcRange {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UtcRange::Empty => fmt.write_str("clock"),
-            UtcRange::From(f) => write!(fmt, "clock={}-", f),
-            UtcRange::FromTo(f, t) => write!(fmt, "clock={}-{}", f, t),
-            UtcRange::To(t) => write!(fmt, "clock=-{}", t),
+            UtcRange::From(f) => write!(fmt, "clock={f}-"),
+            UtcRange::FromTo(f, t) => write!(fmt, "clock={f}-{t}"),
+            UtcRange::To(t) => write!(fmt, "clock=-{t}"),
         }
     }
 }
@@ -573,7 +571,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("couldn't parse {}", header))
                 .unwrap();
 
-            assert_eq!(range, *expected, "{}", header);
+            assert_eq!(range, *expected, "{header}");
 
             let request2 = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
                 .typed_header(&range)
@@ -581,7 +579,7 @@ mod tests {
 
             let range = request2.header(&crate::headers::RANGE).unwrap();
 
-            assert_eq!(range, serialized.unwrap_or(header), "{}", header);
+            assert_eq!(range, serialized.unwrap_or(header), "{header}");
         }
     }
 }

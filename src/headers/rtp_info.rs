@@ -323,11 +323,11 @@ impl super::TypedHeader for RtpInfos {
                     write!(&mut infos, "url={}", info.uri).unwrap();
 
                     if let Some(seq) = info.seq {
-                        write!(&mut infos, ";seq={}", seq).unwrap();
+                        write!(&mut infos, ";seq={seq}").unwrap();
                     }
 
                     if let Some(rtptime) = info.rtptime {
-                        write!(&mut infos, ";rtptime={}", rtptime).unwrap();
+                        write!(&mut infos, ";rtptime={rtptime}").unwrap();
                     }
                 }
             }
@@ -352,7 +352,7 @@ impl super::TypedHeader for RtpInfos {
                         let mut need_semi = false;
 
                         if let Some(seq) = ssrc.seq {
-                            write!(&mut infos, "seq={}", seq).unwrap();
+                            write!(&mut infos, "seq={seq}").unwrap();
                             need_semi = true;
                         }
 
@@ -360,7 +360,7 @@ impl super::TypedHeader for RtpInfos {
                             if need_semi {
                                 infos.push(';');
                             }
-                            write!(&mut infos, "rtptime={}", rtptime).unwrap();
+                            write!(&mut infos, "rtptime={rtptime}").unwrap();
                             need_semi = true;
                         }
 
@@ -369,9 +369,9 @@ impl super::TypedHeader for RtpInfos {
                                 infos.push(';');
                             }
                             if let Some(value) = value {
-                                write!(&mut infos, "{}={}", name, value).unwrap();
+                                write!(&mut infos, "{name}={value}").unwrap();
                             } else {
-                                write!(&mut infos, "{}", name).unwrap();
+                                write!(&mut infos, "{name}").unwrap();
                             }
                             need_semi = true;
                         }

@@ -211,13 +211,11 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 }
                 "mode" => {
                     let modes = value.ok_or(HeaderParseError)?;
-
-                    if !modes.starts_with('"') || !modes.ends_with('"') {
-                        return Err(HeaderParseError);
-                    }
-
-                    let modes = &modes[1..(modes.len() - 1)];
-
+                    let modes = match (modes.starts_with('"'), modes.ends_with('"')) {
+                        (true, true) => &modes[1..(modes.len() - 1)],
+                        (false, false) => &modes,
+                        _ => return Err(HeaderParseError),
+                    };
                     let modes = modes
                         .split(',')
                         .map(TransportMode::from)
@@ -364,8 +362,8 @@ pub enum TransportMode {
 impl<'a> From<&'a str> for TransportMode {
     fn from(transport_mode: &'a str) -> TransportMode {
         match transport_mode {
-            "PLAY" => TransportMode::Play,
-            "RECORD" => TransportMode::Record,
+            "PLAY" | "play" => TransportMode::Play,
+            "RECORD" | "record" => TransportMode::Record,
             other => TransportMode::Other(other.into()),
         }
     }
@@ -912,5 +910,46 @@ mod tests {
             .empty();
 
         assert_eq!(request, request2);
+    }
+
+    #[test]
+    fn test_transport_mode_no_quotes() {
+        let header = "RTP/AVP;multicast;mode=PLAY,RTP/AVP;unicast;dest_addr=\"192.0.2.5:3456\"/\"192.0.2.5:3457\";mode=\"play\"";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![
+                Transport::Rtp(RtpTransport {
+                    profile: super::RtpProfile::Avp,
+                    lower_transport: None,
+                    params: RtpTransportParameters {
+                        multicast: true,
+                        unicast: false,
+                        mode: vec![TransportMode::Play],
+                        ..Default::default()
+                    },
+                }),
+                Transport::Rtp(RtpTransport {
+                    profile: super::RtpProfile::Avp,
+                    lower_transport: None,
+                    params: RtpTransportParameters {
+                        unicast: true,
+                        multicast: false,
+                        dest_addr: vec!["192.0.2.5:3456".into(), "192.0.2.5:3457".into()],
+                        mode: vec![TransportMode::Play],
+                        ..Default::default()
+                    },
+                })
+            ]
+            .into()
+        );
     }
 }

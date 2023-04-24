@@ -325,7 +325,7 @@ impl fmt::Display for HeaderName {
 // The following are OK because the explicit impls below are only for references
 // and map to the derived impls.
 #[allow(clippy::derive_ord_xor_partial_ord)]
-#[allow(clippy::derive_hash_xor_eq)]
+#[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HeaderValue(String);
 

@@ -127,7 +127,7 @@ pub use headers::{HeaderName, HeaderValue, Headers};
 
 pub use url::{Host, Url};
 
-use std::fmt;
+use std::{fmt, num::NonZeroUsize};
 use tinyvec::TinyVec;
 
 /// RTSP protocol version of the message.
@@ -489,7 +489,7 @@ pub enum ParseError {
     /// Parsing failed irrecoverably.
     Error,
     /// Message was not complete and more data is required.
-    Incomplete,
+    Incomplete(Option<NonZeroUsize>),
 }
 
 impl std::error::Error for ParseError {}
@@ -498,7 +498,7 @@ impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
             ParseError::Error => write!(f, "Parse Error"),
-            ParseError::Incomplete => write!(f, "Incomplete message"),
+            ParseError::Incomplete(needed) => write!(f, "Incomplete message: {:?}", needed),
         }
     }
 }

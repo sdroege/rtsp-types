@@ -27,7 +27,12 @@ impl<'a> MessageRef<'a> {
     pub fn parse(buf: &'a [u8]) -> Result<(Self, usize), ParseError> {
         let (remainder, res) = match parser::message(buf) {
             Ok(res) => res,
-            Err(nom::Err::Incomplete(..)) => return Err(ParseError::Incomplete),
+            Err(nom::Err::Incomplete(needed)) => {
+                return Err(ParseError::Incomplete(match needed {
+                    nom::Needed::Size(needed_len) => Some(needed_len),
+                    _ => None,
+                }))
+            }
             Err(_) => return Err(ParseError::Error),
         };
 

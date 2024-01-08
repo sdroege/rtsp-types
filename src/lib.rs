@@ -374,7 +374,7 @@ impl From<StatusCode> for u16 {
             StatusCode::SessionNotFound => 454,
             StatusCode::MethodNotValidInThisState => 455,
             StatusCode::HeaderFieldNotValidForResource => 456,
-            StatusCode::InvalidRange => 456,
+            StatusCode::InvalidRange => 457,
             StatusCode::ParameterIsReadOnly => 458,
             StatusCode::AggregateOperationNotAllowed => 459,
             StatusCode::OnlyAggregateOperationAllowed => 460,

@@ -7,6 +7,13 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.1.1]- 2024-02-14
+### Fixed
+- Fix numeric value of `InvalidRange` status code.
+
+### Changed
+- Declare and check MSRV on the CI.
+
 ## [0.1.0]- 2023-06-30
 ### Fixed
 - Support mode without quotes in the transport header and make it case
@@ -42,7 +49,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/sdroege/rtsp-types/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/sdroege/rtsp-types/compare/0.0.5...0.1.0
 [0.0.5]: https://github.com/sdroege/rtsp-types/compare/0.0.4...0.0.5
 [0.0.4]: https://github.com/sdroege/rtsp-types/compare/0.0.3...0.0.4

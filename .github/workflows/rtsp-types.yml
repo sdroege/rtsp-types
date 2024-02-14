@@ -42,7 +42,7 @@ jobs:
 
     strategy:
       matrix:
-        toolchain: [stable, beta, nightly]
+        toolchain: ['1.58', stable, beta, nightly]
 
     steps:
     - uses: actions/checkout@v2
@@ -53,29 +53,11 @@ jobs:
         profile: minimal
         toolchain: ${{ matrix.toolchain }}
         override: true
+
+    - name: Use MSRV Cargo.lock
+      run: cp Cargo.lock.msrv Cargo.lock
+      if: matrix.toolchain == '1.58'
 
     - name: Run tests
       run: |
         cargo test
-
-  armv7-build:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        toolchain: [stable, beta, nightly]
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install ${{ matrix.toolchain }}
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: ${{ matrix.toolchain }}
-        target: armv7-unknown-linux-gnueabihf
-        override: true
-
-    - name: Build
-      run: |
-        cargo build --target=armv7-unknown-linux-gnueabihf

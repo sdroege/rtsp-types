@@ -9,6 +9,7 @@ keywords = ["rtsp", "network", "protocol", "multimedia", "streaming"]
 categories = ["network-programming", "multimedia"]
 description = "RTSP (RFC 7826) types, parser and serializer"
 readme = "README.md"
+rust-version = "1.58"
 
 [dependencies]
 nom = "7.0"

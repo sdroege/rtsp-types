@@ -7,6 +7,11 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.1.2]- 2024-06-13
+### Fixed
+- Fix build with new `tinyvec` that requires to explictly enable `alloc`
+  feature.
+
 ## [0.1.1]- 2024-02-14
 ### Fixed
 - Fix numeric value of `InvalidRange` status code.
@@ -49,7 +54,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/sdroege/rtsp-types/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/sdroege/rtsp-types/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/sdroege/rtsp-types/compare/0.0.5...0.1.0
 [0.0.5]: https://github.com/sdroege/rtsp-types/compare/0.0.4...0.0.5

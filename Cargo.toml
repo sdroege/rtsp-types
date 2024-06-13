@@ -14,5 +14,5 @@ rust-version = "1.58"
 [dependencies]
 nom = "7.0"
 cookie-factory = "0.3"
-tinyvec = "1.0"
+tinyvec = {version = "1.0", features = ["alloc"]}
 url = "2.0"

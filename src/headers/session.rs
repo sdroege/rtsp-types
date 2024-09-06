@@ -6,6 +6,7 @@ use super::*;
 
 /// `Session` header ([RFC 7826 section 18.49](https://tools.ietf.org/html/rfc7826#section-18.49)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Session(
     /// Session identifier.
     pub String,

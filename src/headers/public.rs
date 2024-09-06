@@ -7,6 +7,7 @@ use crate::Method;
 
 /// `Public` header ([RFC 7826 section 18.39](https://tools.ietf.org/html/rfc7826#section-18.39)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Public(Vec<Method>);
 
 impl std::ops::Deref for Public {

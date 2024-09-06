@@ -16,6 +16,7 @@ use crate::message_ref::HeaderRef;
 /// `AsRef<Headers>` and `AsMut<Headers>, which allows functions working with headers to be
 /// implemented generically over those traits.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Headers(pub(crate) BTreeMap<HeaderName, HeaderValue>);
 
 impl Headers {
@@ -155,6 +156,7 @@ impl AsMut<Headers> for Headers {
 ///
 /// RTSP headers are not normalized to a specific case but stored in here as created.
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderName(Cow<'static, str>);
 
 impl HeaderName {
@@ -327,6 +329,7 @@ impl fmt::Display for HeaderName {
 #[allow(clippy::derive_ord_xor_partial_ord)]
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderValue(String);
 
 impl HeaderValue {

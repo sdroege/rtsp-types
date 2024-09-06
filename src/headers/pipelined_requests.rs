@@ -6,6 +6,7 @@ use super::*;
 
 /// `Pipelined-Requests` header ([RFC 7826 section 18.33](https://tools.ietf.org/html/rfc7826#section-18.33)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PipelinedRequests(u32);
 
 impl std::ops::Deref for PipelinedRequests {

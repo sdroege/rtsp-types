@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 /// `RTP-Info` header ([RFC 7826 section 18.45](https://tools.ietf.org/html/rfc7826#section-18.45)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RtpInfos {
     V1(Vec<v1::RtpInfo>),
     V2(Vec<v2::RtpInfo>),
@@ -45,6 +46,7 @@ pub mod v1 {
 
     /// RTP-Info.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub struct RtpInfo {
         /// Stream URI.
         pub uri: url::Url,
@@ -76,6 +78,7 @@ pub mod v1 {
 
         fn rtp_info(input: &[u8]) -> IResult<&[u8], RtpInfo> {
             #[derive(Clone, Default)]
+            #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
             struct Info<'a> {
                 uri: Option<&'a str>,
                 seq: Option<&'a str>,
@@ -129,6 +132,7 @@ pub mod v2 {
 
     /// RTP-Info.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub struct RtpInfo {
         /// Stream URI.
         pub uri: url::Url,
@@ -138,6 +142,7 @@ pub mod v2 {
 
     /// SSRC Information.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub struct SsrcInfo {
         /// SSRC of this stream.
         pub ssrc: u32,

@@ -7,6 +7,7 @@ use super::*;
 
 /// `Supported` header ([RFC 7826 section 18.51](https://tools.ietf.org/html/rfc7826#section-18.51)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Supported(Vec<String>);
 
 impl std::ops::Deref for Supported {

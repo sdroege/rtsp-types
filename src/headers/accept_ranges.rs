@@ -8,10 +8,12 @@ use std::fmt;
 
 /// `Accept-Ranges` header ([RFC 7826 section 18.5](https://tools.ietf.org/html/rfc7826#section-18.5)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AcceptRanges(Vec<RangeUnit>);
 
 /// Range units.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RangeUnit {
     /// Normal playback time.
     Npt,

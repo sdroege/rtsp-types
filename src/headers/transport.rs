@@ -10,6 +10,7 @@ use std::fmt;
 
 /// `Transport` header ([RFC 7826 section 18.54](https://tools.ietf.org/html/rfc7826#section-18.54)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transports(Vec<Transport>);
 
 impl std::ops::Deref for Transports {
@@ -52,6 +53,7 @@ impl<'a> From<&'a [Transport]> for Transports {
 
 /// Transport.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(clippy::large_enum_variant)]
 pub enum Transport {
     /// RTP media transport.
@@ -62,6 +64,7 @@ pub enum Transport {
 
 /// RTP profiles.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RtpProfile {
     /// Audio/video profile.
     Avp,
@@ -108,6 +111,7 @@ impl<'a> From<&'a str> for RtpProfile {
 
 /// RTP transport description.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RtpTransport {
     /// RTP profile.
     pub profile: RtpProfile,
@@ -119,6 +123,7 @@ pub struct RtpTransport {
 
 /// RTP transport parameters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RtpTransportParameters {
     /// Unicast transport.
     pub unicast: bool,
@@ -312,6 +317,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
 
 /// Lower RTP transport protocol.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RtpLowerTransport {
     /// TCP.
     Tcp,
@@ -350,6 +356,7 @@ impl fmt::Display for RtpLowerTransport {
 
 /// Transport mode.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TransportMode {
     /// Play mode.
     Play,
@@ -388,6 +395,7 @@ impl fmt::Display for TransportMode {
 
 /// Other transport description.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OtherTransport {
     /// Transport specification.
     pub spec: String,
@@ -399,6 +407,7 @@ pub struct OtherTransport {
 
 /// Transport parameters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TransportParameters(pub BTreeMap<String, Option<String>>);
 
 mod parser {

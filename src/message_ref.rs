@@ -7,6 +7,7 @@
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum MessageRef<'a> {
     Request(RequestRef<'a>),
     Response(ResponseRef<'a>),
@@ -63,6 +64,7 @@ impl<'a> MessageRef<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MethodRef<'a> {
     Describe,
     GetParameter,
@@ -140,6 +142,7 @@ impl<'a> From<&'a MethodRef<'a>> for &'a str {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestRef<'a> {
     pub(crate) method: MethodRef<'a>,
     pub(crate) request_uri: Option<&'a str>,
@@ -210,6 +213,7 @@ impl<'a> RequestRef<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct RequestLine<'a> {
     pub(crate) method: MethodRef<'a>,
     pub(crate) request_uri: Option<&'a str>,
@@ -217,6 +221,7 @@ pub(crate) struct RequestLine<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ResponseRef<'a> {
     pub(crate) version: Version,
     pub(crate) status: StatusCode,
@@ -283,6 +288,7 @@ impl<'a> ResponseRef<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct StatusLine<'a> {
     pub(crate) version: Version,
     pub(crate) status: StatusCode,
@@ -290,6 +296,7 @@ pub(crate) struct StatusLine<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DataRef<'a> {
     pub(crate) channel_id: u8,
     pub(crate) body: &'a [u8],
@@ -361,6 +368,7 @@ impl<'a> AsRef<[u8]> for DataRef<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderRef<'a> {
     pub(crate) name: &'a str,
     pub(crate) value: &'a str,

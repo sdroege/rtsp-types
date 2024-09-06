@@ -6,6 +6,7 @@ use super::*;
 
 /// `Content-Type` header ([RFC 7826 section 18.19](https://tools.ietf.org/html/rfc7826#section-18.19)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContentType {
     /// Media type.
     pub media_type: super::MediaType,

@@ -8,6 +8,7 @@ use std::fmt;
 
 /// `Seek-Style` header ([RFC 7826 section 18.47](https://tools.ietf.org/html/rfc7826#section-18.47)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SeekStyle {
     Rap,
     CoRap,

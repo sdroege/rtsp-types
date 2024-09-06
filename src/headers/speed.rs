@@ -6,6 +6,7 @@ use super::*;
 
 /// `Speed` header ([RFC 7826 section 18.50](https://tools.ietf.org/html/rfc7826#section-18.50)).
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Speed(f64);
 
 impl std::ops::Deref for Speed {

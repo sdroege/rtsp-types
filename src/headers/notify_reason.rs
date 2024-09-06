@@ -8,6 +8,7 @@ use std::fmt;
 
 /// `Notify-Reason` header ([RFC 7826 section 18.32](https://tools.ietf.org/html/rfc7826#section-18.32)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NotifyReason {
     EndOfStream,
     MediaPropertiesUpdate,

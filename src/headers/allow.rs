@@ -7,6 +7,7 @@ use crate::Method;
 
 /// `Allow` header ([RFC 7826 section 18.6](https://tools.ietf.org/html/rfc7826#section-18.6)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Allow(Vec<Method>);
 
 impl std::ops::Deref for Allow {

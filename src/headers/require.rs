@@ -7,6 +7,7 @@ use super::*;
 
 /// `Require` header ([RFC 7826 section 18.43](https://tools.ietf.org/html/rfc7826#section-18.43)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Require(Vec<String>);
 
 impl std::ops::Deref for Require {

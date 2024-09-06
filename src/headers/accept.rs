@@ -8,10 +8,12 @@ use std::fmt;
 
 /// `Accept` header ([RFC 7826 section 18.1](https://tools.ietf.org/html/rfc7826#section-18.1)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Accept(Vec<MediaTypeRange>);
 
 /// Media type range.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MediaTypeRange {
     /// Media type.
     ///
@@ -27,6 +29,7 @@ pub struct MediaTypeRange {
 
 /// Media type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MediaType {
     Text,
     Image,

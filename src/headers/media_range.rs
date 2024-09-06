@@ -7,6 +7,7 @@ use super::*;
 
 /// `Media-Range` header ([RFC 7826 section 18.30](https://tools.ietf.org/html/rfc7826#section-18.30)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MediaRange(Vec<Range>);
 
 impl std::ops::Deref for MediaRange {

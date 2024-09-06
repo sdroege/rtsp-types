@@ -136,6 +136,7 @@ use tinyvec::TinyVec;
 /// [RFC 7826](https://tools.ietf.org/html/rfc7826). Check the RFCs for the differences between the
 /// two versions.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Version {
     /// RTSP/1.0
     V1_0,
@@ -148,6 +149,7 @@ pub enum Version {
 /// These are defined in [RFC 7826 section 17](https://tools.ietf.org/html/rfc7826#section-17)
 /// together with their semantics for the different requests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum StatusCode {
     /// Continue
     Continue,
@@ -474,6 +476,7 @@ impl fmt::Display for StatusCode {
 /// This can be used as the `Response` or `Request` body in place of a `&[]`
 /// to signal an empty body.
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Empty;
 
 impl AsRef<[u8]> for Empty {

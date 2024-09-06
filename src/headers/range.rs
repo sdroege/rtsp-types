@@ -9,6 +9,7 @@ use std::fmt;
 
 /// `Range` header ([RFC 7826 section 18.40](https://tools.ietf.org/html/rfc7826#section-18.40)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Range {
     /// Normal Play Time Range ([RFC 7826 section 4.4.2](https://tools.ietf.org/html/rfc7826#section-4.4.2)).
     Npt(NptRange),
@@ -49,6 +50,7 @@ impl std::str::FromStr for Range {
 
 /// Normal Play Time Range ([RFC 7826 section 4.4.2](https://tools.ietf.org/html/rfc7826#section-4.4.2)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NptRange {
     /// Empty range.
     Empty,
@@ -105,6 +107,7 @@ impl std::str::FromStr for NptRange {
 
 /// Normal Play Time ([RFC 7826 section 4.4.2](https://tools.ietf.org/html/rfc7826#section-4.4.2)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NptTime {
     /// Now.
     Now,
@@ -191,6 +194,7 @@ impl std::str::FromStr for NptTime {
 
 /// SMPTE-Relative Timecode Range ([RFC 7826 section 4.4.1](https://tools.ietf.org/html/rfc7826#section-4.4.1)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SmpteRange {
     /// Empty range.
     Empty(SmpteType),
@@ -251,6 +255,7 @@ impl std::str::FromStr for SmpteRange {
 
 /// SMPTE-Relative Timecode Type ([RFC 7826 section 4.4.1](https://tools.ietf.org/html/rfc7826#section-4.4.1)).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SmpteType {
     /// SMPTE 30 frames per second timecodes.
     Smpte,
@@ -289,6 +294,7 @@ impl std::str::FromStr for SmpteType {
 
 /// SMPTE-Relative Timecode ([RFC 7826 section 4.4.1](https://tools.ietf.org/html/rfc7826#section-4.4.1)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SmpteTime {
     /// Hours (0-23).
     pub hours: u8,
@@ -390,6 +396,7 @@ impl std::str::FromStr for SmpteTime {
 
 /// Absolute Time (UTC) Time Range ([RFC 7826 section 4.4.3](https://tools.ietf.org/html/rfc7826#section-4.4.3)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum UtcRange {
     /// Empty range.
     Empty,
@@ -446,6 +453,7 @@ impl std::str::FromStr for UtcRange {
 
 /// Absolute Time (UTC) Time ([RFC 7826 section 4.4.3](https://tools.ietf.org/html/rfc7826#section-4.4.3)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UtcTime {
     /// YYYYMMDD date.
     pub date: u32,

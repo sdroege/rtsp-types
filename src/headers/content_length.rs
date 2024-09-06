@@ -6,6 +6,7 @@ use super::*;
 
 /// `Content-Length` header ([RFC 7826 section 18.17](https://tools.ietf.org/html/rfc7826#section-18.17)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContentLength(u64);
 
 impl std::ops::Deref for ContentLength {

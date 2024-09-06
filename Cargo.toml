@@ -16,3 +16,7 @@ nom = "7.0"
 cookie-factory = "0.3"
 tinyvec = {version = "1.0", features = ["std", "rustc_1_57"]}
 url = "2.0"
+serde = { version = "1.0", optional = true, features = ["derive"] }
+
+[features]
+serde = ["dep:serde", "tinyvec/serde", "url/serde"]

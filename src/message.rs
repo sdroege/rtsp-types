@@ -14,6 +14,7 @@ use crate::headers::{TypedAppendableHeader, TypedHeader};
 /// The body of the message is generic and usually a type that implements `AsRef<[u8]>`. For empty
 /// bodies there also exists the [`Empty`](struct.Empty.html) type.
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Message<Body> {
     /// Request message
     Request(Request<Body>),
@@ -140,6 +141,7 @@ impl<'a, T: From<&'a [u8]>> Message<T> {
 /// See [RFC 7826 section 13](https://tools.ietf.org/html/rfc7826#section-13) for the details about
 /// each method.
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Method {
     /// Describe
     Describe,
@@ -256,6 +258,7 @@ impl PartialEq<Method> for &Method {
 ///     .build(Vec::from(&b"barparam: barstuff"[..]));
 /// ```
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Request<Body> {
     pub(crate) method: Method,
     pub(crate) request_uri: Option<Url>,
@@ -603,6 +606,7 @@ impl RequestBuilder {
 ///     .empty();
 /// ```
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Response<Body> {
     pub(crate) version: Version,
     pub(crate) status: StatusCode,
@@ -950,6 +954,7 @@ impl ResponseBuilder {
 /// See [RFC 7826 section 14](https://tools.ietf.org/html/rfc7826#section-14) for details about the
 /// data message.
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Data<Body> {
     pub(crate) channel_id: u8,
     pub(crate) body: Body,

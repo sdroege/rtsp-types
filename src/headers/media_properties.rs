@@ -8,10 +8,12 @@ use std::fmt;
 
 /// `Media-Properties` header ([RFC 7826 section 18.29](https://tools.ietf.org/html/rfc7826#section-18.29)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MediaProperties(Vec<MediaProperty>);
 
 /// Media properties.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MediaProperty {
     /// Random access access is possible in given duration.
     RandomAccess(Option<f64>),
@@ -70,6 +72,7 @@ impl fmt::Display for MediaProperty {
 
 /// Scale range.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScaleRange {
     Scale(f64),
     Range(f64, f64),

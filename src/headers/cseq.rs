@@ -6,6 +6,7 @@ use super::*;
 
 /// `CSeq` header ([RFC 7826 section 18.20](https://tools.ietf.org/html/rfc7826#section-18.20)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CSeq(u32);
 
 impl std::ops::Deref for CSeq {

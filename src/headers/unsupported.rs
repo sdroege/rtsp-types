@@ -7,6 +7,7 @@ use super::*;
 
 /// `Unsupported` header ([RFC 7826 section 18.55](https://tools.ietf.org/html/rfc7826#section-18.55)).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Unsupported(Vec<String>);
 
 impl std::ops::Deref for Unsupported {

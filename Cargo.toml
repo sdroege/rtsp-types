@@ -1,6 +1,6 @@
 [package]
 name = "rtsp-types"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Sebastian Dröge <sebastian@centricular.com>"]
 repository = "https://github.com/sdroege/rtsp-types"
 edition = "2018"

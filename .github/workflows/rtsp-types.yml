@@ -42,7 +42,7 @@ jobs:
 
     strategy:
       matrix:
-        toolchain: ['1.58', stable, beta, nightly]
+        toolchain: ['1.65', stable, beta, nightly]
 
     steps:
     - uses: actions/checkout@v2
@@ -56,7 +56,7 @@ jobs:
 
     - name: Use MSRV Cargo.lock
       run: cp Cargo.lock.msrv Cargo.lock
-      if: matrix.toolchain == '1.58'
+      if: matrix.toolchain == '1.65'
 
     - name: Run tests
       run: |

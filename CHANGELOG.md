@@ -7,6 +7,14 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.1.3]- 2024-09-06
+### Added
+- Add serde-derived `Serialize` / `Deserialize` implementations behind a
+  feature flag.
+
+### Changed
+- Update MSRV to 1.65.
+
 ## [0.1.2]- 2024-06-13
 ### Fixed
 - Fix build with new `tinyvec` that requires to explictly enable `alloc`
@@ -54,7 +62,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.3...HEAD
+[0.1.3]: https://github.com/sdroege/rtsp-types/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/sdroege/rtsp-types/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/sdroege/rtsp-types/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/sdroege/rtsp-types/compare/0.0.5...0.1.0

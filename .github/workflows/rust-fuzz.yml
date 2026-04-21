@@ -1,0 +1,38 @@
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+name: Quick Fuzzing
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fuzzing:
+    name: Fuzzing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Install cargo-fuzz
+        uses: actions-rs/cargo@v1
+        with:
+          command: 'install'
+          args: 'cargo-fuzz'
+
+      - name: Run cargo-fuzz
+        uses: actions-rs/cargo@v1
+        with:
+          command: 'fuzz'
+          args: 'run parse_message -- -max_total_time=20'
+

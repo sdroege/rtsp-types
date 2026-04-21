@@ -207,7 +207,7 @@ impl<'a> RequestRef<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn headers(&self) -> impl Iterator<Item = &HeaderRef> {
+    pub fn headers(&self) -> impl Iterator<Item = &HeaderRef<'_>> {
         self.headers.iter()
     }
 }
@@ -282,7 +282,7 @@ impl<'a> ResponseRef<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn headers(&self) -> impl Iterator<Item = &HeaderRef> {
+    pub fn headers(&self) -> impl Iterator<Item = &HeaderRef<'_>> {
         self.headers.iter()
     }
 }

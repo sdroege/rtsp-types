@@ -57,7 +57,7 @@ fn rtsp_version(input: &[u8]) -> IResult<&[u8], Version> {
     )(input)
 }
 
-fn request_line(input: &[u8]) -> IResult<&[u8], RequestLine> {
+fn request_line(input: &[u8]) -> IResult<&[u8], RequestLine<'_>> {
     map(
         tuple((
             map(map_res(token, str::from_utf8), MethodRef::from),
@@ -82,7 +82,7 @@ fn from_digit(input: &str) -> Result<u16, std::num::ParseIntError> {
     str::parse::<u16>(input)
 }
 
-fn status_line(input: &[u8]) -> IResult<&[u8], StatusLine> {
+fn status_line(input: &[u8]) -> IResult<&[u8], StatusLine<'_>> {
     map(
         tuple((
             rtsp_version,
@@ -152,7 +152,7 @@ fn header_value(i: &[u8]) -> IResult<&[u8], &[u8]> {
     Err(Err::Incomplete(Needed::Unknown))
 }
 
-fn message_header(input: &[u8]) -> IResult<&[u8], HeaderRef> {
+fn message_header(input: &[u8]) -> IResult<&[u8], HeaderRef<'_>> {
     map(
         tuple((
             map_res(token, str::from_utf8),
@@ -165,7 +165,7 @@ fn message_header(input: &[u8]) -> IResult<&[u8], HeaderRef> {
     )(input)
 }
 
-fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef; 16]>> {
+fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef<'_>; 16]>> {
     terminated(many0_tinyvec(message_header), crlf)(input)
 }
 
@@ -186,7 +186,7 @@ fn content_length<'a>(
     Ok(0)
 }
 
-fn request(input: &[u8]) -> IResult<&[u8], RequestRef> {
+fn request(input: &[u8]) -> IResult<&[u8], RequestRef<'_>> {
     let (input, request_line) = request_line(input)?;
     let (input, headers) = headers(input)?;
     let content_length = content_length(&headers)?;
@@ -204,7 +204,7 @@ fn request(input: &[u8]) -> IResult<&[u8], RequestRef> {
     ))
 }
 
-fn response(input: &[u8]) -> IResult<&[u8], ResponseRef> {
+fn response(input: &[u8]) -> IResult<&[u8], ResponseRef<'_>> {
     let (input, status_line) = status_line(input)?;
     let (input, headers) = headers(input)?;
     let content_length = content_length(&headers)?;
@@ -222,7 +222,7 @@ fn response(input: &[u8]) -> IResult<&[u8], ResponseRef> {
     ))
 }
 
-fn data(input: &[u8]) -> IResult<&[u8], DataRef> {
+fn data(input: &[u8]) -> IResult<&[u8], DataRef<'_>> {
     map(
         tuple((char('$'), take(1usize), flat_map(be_u16, take))),
         |(_, channel_id, body): (_, &[u8], _)| DataRef {
@@ -232,7 +232,7 @@ fn data(input: &[u8]) -> IResult<&[u8], DataRef> {
     )(input)
 }
 
-pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef> {
+pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef<'_>> {
     flat_map(fold_many0(crlf, || (), |_acc, _item| ()), |_| {
         alt((
             map(data, MessageRef::Data),

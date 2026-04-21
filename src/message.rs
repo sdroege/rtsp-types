@@ -43,7 +43,7 @@ impl<Body> From<Data<Body>> for Message<Body> {
 }
 
 impl<Body: AsRef<[u8]>> Message<Body> {
-    pub(crate) fn borrow(&self) -> MessageRef {
+    pub(crate) fn borrow(&self) -> MessageRef<'_> {
         match self {
             Message::Request(request) => MessageRef::Request(request.borrow()),
             Message::Response(response) => MessageRef::Response(response.borrow()),
@@ -172,7 +172,7 @@ pub enum Method {
 }
 
 impl Method {
-    pub(crate) fn borrow(&self) -> MethodRef {
+    pub(crate) fn borrow(&self) -> MethodRef<'_> {
         match self {
             Method::Describe => MethodRef::Describe,
             Method::GetParameter => MethodRef::GetParameter,
@@ -285,7 +285,7 @@ impl Request<Empty> {
 }
 
 impl<Body> Request<Body> {
-    pub(crate) fn borrow(&self) -> RequestRef
+    pub(crate) fn borrow(&self) -> RequestRef<'_>
     where
         Body: AsRef<[u8]>,
     {
@@ -633,7 +633,7 @@ impl Response<Empty> {
 }
 
 impl<Body> Response<Body> {
-    pub(crate) fn borrow(&self) -> ResponseRef
+    pub(crate) fn borrow(&self) -> ResponseRef<'_>
     where
         Body: AsRef<[u8]>,
     {
@@ -967,7 +967,7 @@ impl<BodyA, BodyB: PartialEq<BodyA>> PartialEq<Data<BodyA>> for Data<BodyB> {
 }
 
 impl<Body> Data<Body> {
-    pub(crate) fn borrow(&self) -> DataRef
+    pub(crate) fn borrow(&self) -> DataRef<'_>
     where
         Body: AsRef<[u8]>,
     {

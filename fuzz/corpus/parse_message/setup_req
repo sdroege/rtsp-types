@@ -1,0 +1,6 @@
+SETUP rtsp://example.com/foo/bar/baz.rm RTSP/2.0
+CSeq: 302
+Transport: RTP/AVP;unicast;dest_addr=:4588/:4589,RTP/AVP/TCP;unicast;interleaved=0-1
+Accept-Ranges: npt, clock
+User-Agent: PhonyClient/1.2
+

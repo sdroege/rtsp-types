@@ -1,0 +1,10 @@
+RTSP/2.0 200 OK
+CSeq: 302
+Date: Thu, 23 Jan 1997 15:35:06 GMT
+Server: PhonyServer/1.1
+Session: QKyjN8nt2WqbWw4tIYof52;timeout=60
+Transport: RTP/AVP;unicast;dest_addr=192.0.2.53:4588/192.0.2.53:4589; src_addr=198.51.100.241:6256/198.51.100.241:6257; ssrc=2A3F93ED
+Accept-Ranges: npt
+Media-Properties: Random-Access=3.2, Time-Progressing,Time-Duration=3600.0
+Media-Range: npt=0-2893.23
+

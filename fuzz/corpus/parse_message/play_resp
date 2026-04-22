@@ -1,0 +1,9 @@
+RTSP/2.0 200 OK
+CSeq: 836
+Date: Thu, 23 Jan 1997 15:35:06 GMT
+Server: PhonyServer/1.0
+Range: npt=3.51-324.39
+Seek-Style: First-Prior
+Session: ULExwZCXh2pd0xuFgkgZJW
+RTP-Info:url="rtsp://example.com/audio"ssrc=0D12F123:seq=14783;rtptime=2345962545
+

@@ -1,0 +1,6 @@
+OPTIONS rtsp://server.example.com RTSP/2.0
+CSeq: 1
+User-Agent: PhonyClient/1.2
+Proxy-Require: gzipped-messages
+Supported: play.basic
+

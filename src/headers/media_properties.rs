@@ -185,7 +185,6 @@ pub(super) mod parser {
 
     fn media_property(input: &[u8]) -> IResult<&[u8], MediaProperty> {
         map_res(param, |p| -> Result<_, HeaderParseError> {
-            dbg!(&p);
             match p {
                 ("Random-Access", None) => Ok(MediaProperty::RandomAccess(None)),
                 ("Random-Access", Some(dur)) => {

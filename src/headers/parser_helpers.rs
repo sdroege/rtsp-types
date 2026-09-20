@@ -50,6 +50,20 @@ where
     }
 }
 
+/// Parse an unsigned integer from a string of ASCII digits.
+///
+/// Unlike `str::parse()`, a leading `+` sign is rejected.
+pub(crate) fn parse_digits<T>(s: &str) -> Result<T, ()>
+where
+    T: std::str::FromStr,
+{
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(());
+    }
+
+    T::from_str(s).map_err(|_| ())
+}
+
 pub(super) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     pub(super) fn is_token_char(i: u8) -> bool {
         is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)

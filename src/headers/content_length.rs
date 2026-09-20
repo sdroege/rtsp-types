@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers::parse_digits;
 use super::*;
 
 /// `Content-Length` header ([RFC 7826 section 18.17](https://tools.ietf.org/html/rfc7826#section-18.17)).
@@ -56,9 +57,7 @@ impl super::TypedHeader for ContentLength {
             Some(header) => header,
         };
 
-        let length = header
-            .as_str()
-            .parse::<u64>()
+        let length = parse_digits::<u64>(header.as_str())
             .map(ContentLength)
             .map_err(|_| HeaderParseError)?;
 
@@ -69,5 +68,39 @@ impl super::TypedHeader for ContentLength {
         let headers = headers.as_mut();
 
         headers.insert(CONTENT_LENGTH, self.0.to_string());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_headers() {
+        let valid = ["0", "1", "9999999999999999999", "18446744073709551615"];
+        for s in valid {
+            let mut test_headers = Headers::new();
+            test_headers.insert(CONTENT_LENGTH, s);
+            let result = ContentLength::from_headers(&test_headers)
+                .expect("should not error")
+                .expect("should be Some");
+            assert_eq!(*result, s.parse::<u64>().unwrap(), "{}", s);
+        }
+
+        let invalid = [
+            "+1",
+            "-1",
+            "1e2",
+            "",
+            " 1",
+            "1 ",
+            "18446744073709551616",
+            "0x1",
+        ];
+        for s in invalid {
+            let mut test_headers = Headers::new();
+            test_headers.insert(CONTENT_LENGTH, s);
+            assert!(ContentLength::from_headers(&test_headers).is_err(), "{}", s);
+        }
     }
 }

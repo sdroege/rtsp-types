@@ -141,6 +141,42 @@ impl<'a> From<&'a MethodRef<'a>> for &'a str {
     }
 }
 
+/// Ensure the `Content-Length` header, if any, matches the body.
+fn check_content_length<'a>(headers: &[HeaderRef<'a>], body: &'a [u8]) -> Result<(), WriteError> {
+    let mut content_length = None;
+
+    for h in headers.iter().filter(|h| h.name.eq_ignore_ascii_case("Content-Length")) {
+        let v = h
+            .value
+            .parse::<usize>()
+            .map_err(|_| WriteError::InvalidContentLength {
+                content_length: None,
+                body_len: body.len(),
+            })?;
+
+        // Multiple non-identical `Content-Length` fields are malformed.
+        match content_length {
+            None => content_length = Some(v),
+            Some(prev) if prev != v => {
+                return Err(WriteError::InvalidContentLength {
+                    content_length: Some(v),
+                    body_len: body.len(),
+                })
+            }
+            Some(_) => (),
+        }
+    }
+
+    if content_length == Some(body.len()) || (content_length.is_none() && body.is_empty()) {
+        return Ok(());
+    }
+
+    Err(WriteError::InvalidContentLength {
+        content_length,
+        body_len: body.len(),
+    })
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RequestRef<'a> {
@@ -170,6 +206,8 @@ impl<'a> RequestRef<'a> {
     where
         'b: 'a,
     {
+        check_content_length(&self.headers, self.body)?;
+
         match cookie_factory::gen_simple(serializer::request(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
@@ -245,6 +283,8 @@ impl<'a> ResponseRef<'a> {
     where
         'b: 'a,
     {
+        check_content_length(&self.headers, self.body)?;
+
         match cookie_factory::gen_simple(serializer::response(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
@@ -390,5 +430,32 @@ impl<'a> HeaderRef<'a> {
     #[allow(dead_code)]
     pub fn set_value(&mut self, value: &'a str) {
         self.value = value;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_write_content_length_mismatch() {
+        let mut request =
+            crate::Request::builder(crate::Method::SetParameter, crate::Version::V2_0)
+                .build(b"123");
+        *request.header_mut(&crate::headers::CONTENT_LENGTH).unwrap() = "100".into();
+
+        let mut v = vec![];
+
+        match request.write(&mut v) {
+            Err(WriteError::InvalidContentLength {
+                content_length,
+                body_len,
+            }) => {
+                assert_eq!(content_length, Some(100));
+                assert_eq!(body_len, 3);
+            }
+            other => panic!("Expected InvalidContentLength, got: {:?}", other),
+        }
+        assert!(v.is_empty());
     }
 }

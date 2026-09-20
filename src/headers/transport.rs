@@ -662,6 +662,8 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
+                            // Escape quote and backslash characters.
+                            let addr = addr.replace('\\', "\\\\").replace('"', "\\\"");
                             write!(&mut transports, "\"{addr}\"").unwrap()
                         }
                     }
@@ -678,6 +680,8 @@ impl super::TypedHeader for Transports {
                                 transports.push('/');
                             }
 
+                            // Escape quote and backslash characters.
+                            let addr = addr.replace('\\', "\\\\").replace('"', "\\\"");
                             write!(&mut transports, "\"{addr}\"").unwrap()
                         }
                     }
@@ -961,6 +965,39 @@ mod tests {
             })]
             .into()
         );
+    }
+
+    #[test]
+    fn test_transport_addr_escaping_roundtrip() {
+        let header = "RTP/AVP;dest_addr=\"a\\\"b\"/\"c\\\\d\";src_addr=\"e\\\"f\"";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    dest_addr: vec!["a\"b".into(), "c\\d".into()],
+                    src_addr: vec!["e\"f".into()],
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(request, request2);
     }
 
     #[test]

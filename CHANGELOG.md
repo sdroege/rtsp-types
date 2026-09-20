@@ -21,6 +21,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Ignore empty elements in comma-separated list headers.
 - Fix the serialization casing of `MediaType::Multipart`.
 - Parse RTSP 1.0 `RTP-Info` headers with quoted URLs.
+- Escape quotes and backslashes in `Transport` address values.
 
 ## [0.1.3]- 2024-09-06
 ### Added

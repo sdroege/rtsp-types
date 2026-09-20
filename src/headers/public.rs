@@ -85,6 +85,10 @@ impl super::TypedHeader for Public {
         for method in header.as_str().split(',') {
             let method = method.trim();
 
+            if method.is_empty() {
+                continue;
+            }
+
             public.push(method.into());
         }
 

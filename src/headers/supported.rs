@@ -147,6 +147,10 @@ impl super::TypedHeader for Supported {
         for feature in header.as_str().split(',') {
             let feature = feature.trim();
 
+            if feature.is_empty() {
+                continue;
+            }
+
             supported.push(feature.into());
         }
 

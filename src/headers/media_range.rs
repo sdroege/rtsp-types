@@ -85,6 +85,10 @@ impl super::TypedHeader for MediaRange {
         for range in header.as_str().split(',') {
             let range = range.trim();
 
+            if range.is_empty() {
+                continue;
+            }
+
             ranges.push(range.parse()?);
         }
 
@@ -121,5 +125,27 @@ impl super::TypedAppendableHeader for MediaRange {
         }
 
         headers.append(MEDIA_RANGE, ranges);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_headers_empty_elements() {
+        let headers_strs = ["npt=0-10,,npt=20-30", ",npt=0-10,npt=20-30,"];
+
+        let expected: Vec<Range> = vec!["npt=0-10".parse().unwrap(), "npt=20-30".parse().unwrap()];
+
+        for s in headers_strs {
+            let mut test_headers = Headers::new();
+            test_headers.insert(MEDIA_RANGE, s);
+            let result = MediaRange::from_headers(&test_headers)
+                .expect("should not error")
+                .expect("should be Some");
+
+            assert_eq!(&*result, &expected, "{s}");
+        }
     }
 }

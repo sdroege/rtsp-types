@@ -147,6 +147,10 @@ impl super::TypedHeader for Require {
         for feature in header.as_str().split(',') {
             let feature = feature.trim();
 
+            if feature.is_empty() {
+                continue;
+            }
+
             require.push(feature.into());
         }
 
@@ -183,5 +187,27 @@ impl super::TypedAppendableHeader for Require {
         }
 
         headers.append(REQUIRE, require);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_headers_empty_elements() {
+        let headers_strs = ["a,,b", ",a,b", "a,b,", " , a , b , "];
+
+        let expected = vec!["a".to_string(), "b".to_string()];
+
+        for s in headers_strs {
+            let mut test_headers = Headers::new();
+            test_headers.insert(REQUIRE, s);
+            let result = Require::from_headers(&test_headers)
+                .expect("should not error")
+                .expect("should be Some");
+
+            assert_eq!(&*result, &expected, "{s}");
+        }
     }
 }

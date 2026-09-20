@@ -247,7 +247,9 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                             s = &s[1..(s.len() - 1)];
                             while !s.is_empty() {
                                 if s.starts_with(b"\\") {
-                                    assert!(s.len() >= 2);
+                                    if s.len() < 2 {
+                                        return Err(HeaderParseError);
+                                    }
                                     res.push(s[1]);
                                     s = &s[2..];
                                 } else {
@@ -463,6 +465,7 @@ mod parser {
 
         let i = &input[1..];
         let mut o = i;
+        let mut closed = false;
 
         while !o.is_empty() {
             if o.len() >= 2 && o.starts_with(b"\\") {
@@ -477,13 +480,15 @@ mod parser {
             } else {
                 // Closing quote, also include it
                 o = &o[1..];
+                closed = true;
                 break;
             }
         }
 
         let (fst, snd) = input.split_at(input.len() - o.len());
-        // Did not end with a quote
-        if !fst.ends_with(b"\"") {
+        // The input did not contain the closing quote, e.g. it ended in an escaped
+        // quote.
+        if !closed {
             return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
         }
 
@@ -919,6 +924,41 @@ mod tests {
             .empty();
 
         assert_eq!(request, request2);
+    }
+
+    #[test]
+    fn test_transport_dest_addr_escaped_quote_end() {
+        // A quoted string ending in an escaped quote is not terminated.
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, "RTP/AVP;dest_addr=\"a\\\"")
+            .empty();
+
+        assert!(request.typed_header::<super::Transports>().is_err());
+    }
+
+    #[test]
+    fn test_transport_dest_addr_escaped_quote() {
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, "RTP/AVP;dest_addr=\"a\\\"b\"")
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    dest_addr: vec!["a\"b".into()],
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
     }
 
     #[test]

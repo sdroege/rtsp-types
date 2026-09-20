@@ -205,7 +205,14 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     let ssrc = value
                         .ok_or(HeaderParseError)?
                         .split('/')
-                        .map(|s| u32::from_str_radix(s, 16).map_err(|_| HeaderParseError))
+                        .map(|s| {
+                            // ssrc = 8HEX
+                            if s.len() != 8 {
+                                return Err(HeaderParseError);
+                            }
+
+                            u32::from_str_radix(s, 16).map_err(|_| HeaderParseError)
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
 
                     if ssrc.is_empty() {
@@ -1123,5 +1130,48 @@ mod tests {
         transports.insert_into(&mut test_headers);
 
         assert_eq!(test_headers.get(&TRANSPORT), None);
+    }
+
+    #[test]
+    fn test_transport_ssrc() {
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, "RTP/AVP;ssrc=0D12F123")
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        let [Transport::Rtp(rtp)] = &transports.0[..] else {
+            panic!("unexpected transports: {:?}", transports);
+        };
+
+        assert_eq!(rtp.params.ssrc, vec![0x0D12F123]);
+    }
+
+    #[test]
+    fn test_transport_invalid_ssrc() {
+        // ssrc = 8HEX.
+        let bad_headers = [
+            "RTP/AVP;ssrc=0D12F12",
+            "RTP/AVP;ssrc=0D12F1234",
+            "RTP/AVP;ssrc=0D12F12G",
+            "RTP/AVP;ssrc=+0D12F123",
+        ];
+
+        for header in bad_headers {
+            let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+                .header(crate::headers::TRANSPORT, header)
+                .empty();
+
+            assert!(
+                request
+                    .typed_header::<super::Transports>()
+                    .map_or(true, |transports| transports.is_none()),
+                "{} should fail",
+                header
+            );
+        }
     }
 }

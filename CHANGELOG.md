@@ -7,6 +7,9 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+### Changed
+- `HeaderName` now hashes case-insensitively, consistent with its equality.
+
 ### Fixed
 - Fix `HeaderName::cmp` for prefix-related header names.
 - Reject quoted strings ending in an escaped quote.

@@ -269,8 +269,8 @@ impl std::hash::Hash for HeaderName {
     where
         H: std::hash::Hasher,
     {
-        for b in self.0.as_bytes() {
-            b.hash(h)
+        for &b in self.0.as_bytes() {
+            b.to_ascii_lowercase().hash(h);
         }
     }
 }
@@ -479,6 +479,16 @@ mod tests {
         assert!(a.eq(&b) && a.cmp(&b) == std::cmp::Ordering::Equal);
         assert!(a < c);
         assert!(b < c);
+    }
+
+    #[test]
+    fn test_name_hash_case_insensitive() {
+        let mut map: std::collections::HashMap<HeaderName, &str> = std::collections::HashMap::new();
+
+        map.insert(name("Session"), "a");
+
+        assert_eq!(map.get(&name("SESSION")).unwrap(), &"a");
+        assert_eq!(map.get(&name("sessionx")), None);
     }
 
     #[test]

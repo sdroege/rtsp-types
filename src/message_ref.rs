@@ -4,6 +4,7 @@
 
 // TODO: Consider making this public at a later time
 
+use super::headers::parser_helpers::parse_digits;
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -145,14 +146,14 @@ impl<'a> From<&'a MethodRef<'a>> for &'a str {
 fn check_content_length<'a>(headers: &[HeaderRef<'a>], body: &'a [u8]) -> Result<(), WriteError> {
     let mut content_length = None;
 
-    for h in headers.iter().filter(|h| h.name.eq_ignore_ascii_case("Content-Length")) {
-        let v = h
-            .value
-            .parse::<usize>()
-            .map_err(|_| WriteError::InvalidContentLength {
-                content_length: None,
-                body_len: body.len(),
-            })?;
+    for h in headers
+        .iter()
+        .filter(|h| h.name.eq_ignore_ascii_case("Content-Length"))
+    {
+        let v = parse_digits::<usize>(h.value).map_err(|_| WriteError::InvalidContentLength {
+            content_length: None,
+            body_len: body.len(),
+        })?;
 
         // Multiple non-identical `Content-Length` fields are malformed.
         match content_length {

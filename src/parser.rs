@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::headers::parser_helpers::parse_digits;
 use super::nom_extensions::many0_tinyvec;
 use super::*;
 use nom::branch::alt;
@@ -180,7 +181,7 @@ fn content_length<'a>(
     {
         // A sender MUST NOT generate multiple Content-Length header fields with
         // non-identical values, in which case the message is malformed.
-        let v = str::parse::<usize>(h.value).map_err(|_| {
+        let v = parse_digits::<usize>(h.value).map_err(|_| {
             nom::Err::Failure(nom::error::Error::new(
                 h.value.as_bytes(),
                 nom::error::ErrorKind::MapRes,
@@ -650,5 +651,19 @@ REMAINDER"
                 DataRef::from_slice(12, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
             ))
         );
+    }
+
+    #[test]
+    fn test_options_with_invalid_content_length() {
+        assert!(matches!(
+            request(
+                b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
+ CSeq: 1\r\n\
+ Content-Length: +10\r\n\
+ \r\n\
+ 0123456789"
+            ),
+            Err(nom::Err::Failure(_))
+        ));
     }
 }

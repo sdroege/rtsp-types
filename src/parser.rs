@@ -172,18 +172,34 @@ fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef<'_>; 16]>> {
 fn content_length<'a>(
     headers: &[HeaderRef<'a>],
 ) -> Result<usize, nom::Err<nom::error::Error<&'a [u8]>>> {
-    if let Some(h) = headers
+    let mut value = None;
+
+    for h in headers
         .iter()
-        .find(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
+        .filter(|h| &h.name.to_ascii_uppercase() == "CONTENT-LENGTH")
     {
-        return str::parse::<usize>(h.value).map_err(|_| {
+        // A sender MUST NOT generate multiple Content-Length header fields with
+        // non-identical values, in which case the message is malformed.
+        let v = str::parse::<usize>(h.value).map_err(|_| {
             nom::Err::Failure(nom::error::Error::new(
                 h.value.as_bytes(),
                 nom::error::ErrorKind::MapRes,
             ))
-        });
+        })?;
+
+        match value {
+            None => value = Some(v),
+            Some(prev) if prev != v => {
+                return Err(nom::Err::Failure(nom::error::Error::new(
+                    h.value.as_bytes(),
+                    nom::error::ErrorKind::MapRes,
+                )))
+            }
+            Some(_) => (),
+        }
     }
-    Ok(0)
+
+    Ok(value.unwrap_or(0))
 }
 
 fn request(input: &[u8]) -> IResult<&[u8], RequestRef<'_>> {
@@ -590,6 +606,33 @@ CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
 User-Agent: PhonyClient/1.2\r\n\
 Content-Length: bad\r\n\
+\r\n\
+0123456789\
+REMAINDER"
+            ),
+            Err(nom::Err::Failure(_))
+        ));
+    }
+
+    #[test]
+    fn test_duplicate_content_length() {
+        // Identical duplicates are fine.
+        assert!(response(
+            b"RTSP/2.0 200 All Good\r\n\
+Content-Length: 10\r\n\
+Content-Length: 10\r\n\
+\r\n\
+0123456789\
+REMAINDER"
+        )
+        .is_ok());
+
+        // Differing duplicates make the message malformed.
+        assert!(matches!(
+            response(
+                b"RTSP/2.0 200 All Good\r\n\
+Content-Length: 10\r\n\
+Content-Length: 5\r\n\
 \r\n\
 0123456789\
 REMAINDER"

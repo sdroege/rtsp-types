@@ -514,6 +514,13 @@ pub enum WriteError {
     IoError(std::io::Error),
     /// Interleaved data is too large to be serialized
     DataTooLarge(usize),
+    /// The `Content-Length` header does not match the message body
+    InvalidContentLength {
+        /// The `Content-Length` value, if any
+        content_length: Option<usize>,
+        /// The actual body length
+        body_len: usize,
+    },
 }
 
 impl std::error::Error for WriteError {
@@ -521,6 +528,7 @@ impl std::error::Error for WriteError {
         match self {
             WriteError::IoError(ref err) => Some(err),
             WriteError::DataTooLarge(_) => None,
+            WriteError::InvalidContentLength { .. } => None,
         }
     }
 }
@@ -535,6 +543,16 @@ impl std::fmt::Display for WriteError {
                     "Interleaved data too large to be serialized: {len} bytes"
                 )
             }
+            WriteError::InvalidContentLength {
+                content_length,
+                body_len,
+            } => match content_length {
+                None => write!(f, "Missing `Content-Length` for {body_len} byte body"),
+                Some(len) => write!(
+                    f,
+                    "`Content-Length` ({len}) does not match {body_len} byte body"
+                ),
+            },
         }
     }
 }

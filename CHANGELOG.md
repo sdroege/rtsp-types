@@ -17,6 +17,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Preserve `/` separators in `Other` transport specs.
 - Error on interleaved data over 64 KiB instead of silently truncating it.
 - Fix the serialization round-trip of `Transport` specs with multiple modes.
+- Validate `Content-Length` against the body on write and reject messages with conflicting duplicate `Content-Length` headers.
 
 ## [0.1.3]- 2024-09-06
 ### Added

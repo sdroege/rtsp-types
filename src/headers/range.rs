@@ -228,8 +228,6 @@ impl std::str::FromStr for SmpteRange {
                 return Ok(SmpteRange::Empty(ty));
             }
 
-            let range = range.strip_prefix('=').ok_or(HeaderParseError)?;
-
             let (from, to) = split_once(range, '-').ok_or(HeaderParseError)?;
             let from = if from.is_empty() { None } else { Some(from) };
             let to = if to.is_empty() { None } else { Some(to) };
@@ -566,6 +564,102 @@ mod tests {
                     NptTime::Hms(1, 17, 59, Some(123_000_000)),
                 )),
                 Some("npt=43:53:10-01:17:59.123000000"),
+            ),
+        ];
+
+        for (header, expected, serialized) in &headers {
+            let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .header(crate::headers::RANGE, *header)
+                .empty();
+
+            let range = request
+                .typed_header::<super::Range>()
+                .unwrap_or_else(|_| panic!("couldn't parse {}", header))
+                .unwrap();
+
+            assert_eq!(range, *expected, "{header}");
+
+            let request2 = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .typed_header(&range)
+                .empty();
+
+            let range = request2.header(&crate::headers::RANGE).unwrap();
+
+            assert_eq!(range, serialized.unwrap_or(header), "{header}");
+        }
+    }
+
+    #[test]
+    fn test_range_smpte() {
+        let headers = [
+            (
+                "smpte",
+                Range::Smpte(SmpteRange::Empty(SmpteType::Smpte)),
+                None,
+            ),
+            (
+                "smpte=1:2:3:4-5:6:7:8",
+                Range::Smpte(SmpteRange::FromTo(
+                    SmpteType::Smpte,
+                    SmpteTime {
+                        hours: 1,
+                        minutes: 2,
+                        seconds: 3,
+                        frames: Some((4, None)),
+                    },
+                    SmpteTime {
+                        hours: 5,
+                        minutes: 6,
+                        seconds: 7,
+                        frames: Some((8, None)),
+                    },
+                )),
+                Some("smpte=01:02:03:04-05:06:07:08"),
+            ),
+            (
+                "smpte=1:2:3:4-",
+                Range::Smpte(SmpteRange::From(
+                    SmpteType::Smpte,
+                    SmpteTime {
+                        hours: 1,
+                        minutes: 2,
+                        seconds: 3,
+                        frames: Some((4, None)),
+                    },
+                )),
+                Some("smpte=01:02:03:04-"),
+            ),
+            (
+                "smpte=-1:2:3:4",
+                Range::Smpte(SmpteRange::To(
+                    SmpteType::Smpte,
+                    SmpteTime {
+                        hours: 1,
+                        minutes: 2,
+                        seconds: 3,
+                        frames: Some((4, None)),
+                    },
+                )),
+                Some("smpte=-01:02:03:04"),
+            ),
+            (
+                "smpte-25=01:02:03:04.05-05:06:07:08.09",
+                Range::Smpte(SmpteRange::FromTo(
+                    SmpteType::Smpte25,
+                    SmpteTime {
+                        hours: 1,
+                        minutes: 2,
+                        seconds: 3,
+                        frames: Some((4, Some(5))),
+                    },
+                    SmpteTime {
+                        hours: 5,
+                        minutes: 6,
+                        seconds: 7,
+                        frames: Some((8, Some(9))),
+                    },
+                )),
+                None,
             ),
         ];
 

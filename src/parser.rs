@@ -6,7 +6,7 @@ use super::headers::parser_helpers::parse_digits;
 use super::nom_extensions::many0_tinyvec;
 use super::*;
 use nom::branch::alt;
-use nom::bytes::streaming::{tag, take, take_until, take_while, take_while_m_n};
+use nom::bytes::streaming::{tag, take, take_until, take_while, take_while1, take_while_m_n};
 use nom::character::streaming::{char, one_of};
 use nom::character::{is_alphanumeric, is_digit, is_space};
 use nom::combinator::{flat_map, map, map_res, opt, value};
@@ -17,12 +17,16 @@ use nom::{Err, IResult, Needed};
 use std::str;
 use tinyvec::TinyVec;
 
-fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    fn is_token_char(i: u8) -> bool {
-        is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
-    }
+fn is_token_char(i: u8) -> bool {
+    is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+}
 
+fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_token_char)(input)
+}
+
+fn token_1(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    take_while1(is_token_char)(input)
 }
 
 // Matches and consumes one space
@@ -41,7 +45,7 @@ fn vchar_1(input: &[u8]) -> IResult<&[u8], &[u8]> {
         i > 32 && i <= 126
     }
 
-    take_while(is_vchar)(input)
+    take_while1(is_vchar)(input)
 }
 
 // Parses an RTSP version, only accepts 1.0 and 2.0
@@ -61,7 +65,7 @@ fn rtsp_version(input: &[u8]) -> IResult<&[u8], Version> {
 fn request_line(input: &[u8]) -> IResult<&[u8], RequestLine<'_>> {
     map(
         tuple((
-            map(map_res(token, str::from_utf8), MethodRef::from),
+            map(map_res(token_1, str::from_utf8), MethodRef::from),
             sp,
             alt((
                 value(None, char('*')),
@@ -293,6 +297,16 @@ mod tests {
                 }
             ))
         );
+    }
+
+    #[test]
+    fn test_request_line_with_empty_method() {
+        assert!(request_line(b" rtsp://media.example.com RTSP/2.0\r\n").is_err());
+    }
+
+    #[test]
+    fn test_request_line_with_empty_uri() {
+        assert!(request_line(b"OPTIONS  RTSP/2.0\r\n").is_err());
     }
 
     #[test]

@@ -454,7 +454,7 @@ Content-Length: 10\r\n\
 
         match DataRef::from_slice(0, &body).write(&mut v) {
             Err(WriteError::DataTooLarge(len)) => assert_eq!(len, body.len()),
-            other => panic!("Expected DataTooLarge, got: {other:?}"),
+            other => panic!("Expected DataTooLarge, got: {:?}", other),
         }
         assert!(v.is_empty());
 

@@ -32,6 +32,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Require `ssrc` values to be exactly 8 hexadecimal digits.
 - Don't panic on a lone `"` as a `mode` value in `Transport` headers.
 - Parse and serialize `Content-Type` parameters quote-aware.
+- Reject NaN, infinity and scientific notation in `Scale` and `Speed` values.
 
 ## [0.1.3]- 2024-09-06
 ### Added

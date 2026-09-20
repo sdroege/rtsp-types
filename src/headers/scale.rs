@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers::parse_float;
 use super::*;
 
 /// `Scale` header ([RFC 7826 section 18.46](https://tools.ietf.org/html/rfc7826#section-18.46)).
@@ -56,9 +57,7 @@ impl super::TypedHeader for Scale {
             Some(header) => header,
         };
 
-        let scale = header
-            .as_str()
-            .parse::<f64>()
+        let scale = parse_float(header.as_str(), true)
             .map(Scale)
             .map_err(|_| HeaderParseError)?;
 
@@ -69,5 +68,59 @@ impl super::TypedHeader for Scale {
         let headers = headers.as_mut();
 
         headers.insert(SCALE, self.0.to_string());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_scale() {
+        let headers = [
+            ("1", 1.0),
+            ("0.5", 0.5),
+            ("-2", -2.0),
+            ("1.25", 1.25),
+            ("0", 0.0),
+        ];
+
+        for (header, expected) in &headers {
+            let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .header(crate::headers::SCALE, *header)
+                .empty();
+
+            let scale = request
+                .typed_header::<super::Scale>()
+                .unwrap_or_else(|_| panic!("couldn't parse {}", header))
+                .unwrap();
+
+            assert_eq!(*scale, *expected, "{}", header);
+
+            let request2 = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .typed_header(&scale)
+                .empty();
+
+            let scale = request2.header(&crate::headers::SCALE).unwrap();
+
+            assert_eq!(scale, *header, "{}", header);
+        }
+    }
+
+    #[test]
+    fn test_scale_invalid() {
+        let headers = [
+            "", "inf", "-inf", "NaN", "1e5", "1E-3", "+1", "1.", ".5", "1.2.3", "--1", "-",
+        ];
+
+        for header in &headers {
+            let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .header(crate::headers::SCALE, *header)
+                .empty();
+
+            assert!(
+                request.typed_header::<super::Scale>().is_err(),
+                "{}",
+                header
+            );
+        }
     }
 }

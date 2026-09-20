@@ -314,9 +314,11 @@ impl<'a> DataRef<'a> {
     where
         'b: 'a,
     {
+        let len = self.len();
         match cookie_factory::gen_simple(serializer::data(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
+            Err(cookie_factory::GenError::CustomError(_)) => Err(WriteError::DataTooLarge(len)),
             // This case can't really happen with our serializer!
             Err(err) => panic!("Failed to write message: {:?}", err),
         }

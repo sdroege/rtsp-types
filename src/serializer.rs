@@ -107,12 +107,20 @@ pub(crate) fn response<'a, W: Write + 'a>(response: ResponseRef<'a>) -> impl Ser
 }
 
 pub(crate) fn data<'a, W: Write + 'a>(data: DataRef<'a>) -> impl SerializeFn<W> + 'a {
-    tuple((
-        string("$"),
-        be_u8(data.channel_id),
-        be_u16(data.len() as u16),
-        slice(data.as_slice()),
-    ))
+    move |mut w: WriteContext<W>| {
+        let len = data.len();
+
+        // The length is written as a 16-bit big endian integer.
+        if len > u16::MAX as usize {
+            return Err(GenError::CustomError(0));
+        }
+
+        w = string("$")(w)?;
+        w = be_u8(data.channel_id)(w)?;
+        w = be_u16(len as u16)(w)?;
+        w = slice(data.as_slice())(w)?;
+        Ok(w)
+    }
 }
 
 pub(crate) fn message<'a, W: Write + 'a>(message: MessageRef<'a>) -> impl SerializeFn<W> + 'a {
@@ -437,5 +445,22 @@ Content-Length: 10\r\n\
         .unwrap();
 
         assert_eq!(v, &[b'$', 12, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9][..],);
+    }
+
+    #[test]
+    fn test_data_too_large() {
+        let body = vec![0u8; (u16::MAX as usize) + 1];
+        let mut v = vec![];
+
+        match DataRef::from_slice(0, &body).write(&mut v) {
+            Err(WriteError::DataTooLarge(len)) => assert_eq!(len, body.len()),
+            other => panic!("Expected DataTooLarge, got: {other:?}"),
+        }
+        assert!(v.is_empty());
+
+        // The maximum size is still fine.
+        let body = vec![0u8; u16::MAX as usize];
+        DataRef::from_slice(0, &body).write(&mut v).unwrap();
+        assert_eq!(v.len(), 4 + body.len());
     }
 }

@@ -27,6 +27,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Fix `StatusCode` reason phrases and the display of extension status codes.
 - Reject a leading `+` in numeric header values.
 - Reject an empty method or request URI in the request line.
+- Trim whitespace around `;` delimiters in `Session` headers.
 
 ## [0.1.3]- 2024-09-06
 ### Added

@@ -57,8 +57,9 @@ impl super::TypedHeader for Session {
 
         let mut iter = header.as_str().split(';');
 
-        let session_id = iter.next().ok_or(HeaderParseError)?;
+        let session_id = iter.next().ok_or(HeaderParseError)?.trim();
         let timeout = iter
+            .map(str::trim)
             .find_map(|s| s.strip_prefix("timeout="))
             .map(|s| s.parse::<u64>())
             .transpose()
@@ -140,6 +141,10 @@ mod tests {
             (
                 "wjdl38ek98;extra;extra;extra;timeout=600",
                 Some(Session("wjdl38ek98".to_string(), Some(600))),
+            ),
+            (
+                "123 ; timeout=60",
+                Some(Session("123".to_string(), Some(60))),
             ),
         ];
 

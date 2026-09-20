@@ -152,9 +152,7 @@ impl MediaPropertiesBuilder {
 pub(super) mod parser {
     use super::*;
 
-    use super::parser_helpers::{
-        cond_parser, quoted_string, rtsp_unreserved, split_once, token, trim,
-    };
+    use super::parser_helpers::{cond_parser, quoted_string, rtsp_unreserved, token, trim};
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::{all_consuming, map_res};
@@ -213,7 +211,7 @@ pub(super) mod parser {
                     let mut s = Vec::new();
                     for scale in scales[1..(scales.len() - 1)].split(',') {
                         let scale = scale.trim();
-                        if let Some((a, b)) = split_once(scale, ':') {
+                        if let Some((a, b)) = scale.split_once(':') {
                             let a = a.parse().map_err(|_| HeaderParseError)?;
                             let b = b.parse().map_err(|_| HeaderParseError)?;
                             s.push(ScaleRange::Range(a, b));

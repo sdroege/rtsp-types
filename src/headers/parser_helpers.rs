@@ -112,20 +112,20 @@ pub(crate) fn parse_float(s: &str, allow_negative: bool) -> Result<f64, ()> {
     Ok(value)
 }
 
-pub(super) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    pub(super) fn is_token_char(i: u8) -> bool {
-        is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
-    }
+pub(super) fn is_token_char(i: u8) -> bool {
+    is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+}
 
+pub(super) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_token_char)(input)
 }
 
-pub(super) fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    pub(super) fn is_rtsp_unreserved_char(i: u8) -> bool {
-        // rtsp_unreserved
-        is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
-    }
+pub(super) fn is_rtsp_unreserved_char(i: u8) -> bool {
+    // rtsp_unreserved
+    is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
+}
 
+pub(super) fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while(is_rtsp_unreserved_char)(input)
 }
 
@@ -169,14 +169,4 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     assert!(fst.starts_with(b"\""));
 
     Ok((snd, fst))
-}
-
-// FIXME: Remove once str::split_once is stabilized
-pub(super) fn split_once(s: &str, d: char) -> Option<(&str, &str)> {
-    let idx = s.find(d)?;
-    let (fst, snd) = s.split_at(idx);
-
-    let (_, snd) = snd.split_at(snd.char_indices().nth(1).map(|(idx, _c)| idx).unwrap_or(1));
-
-    Some((fst, snd))
 }

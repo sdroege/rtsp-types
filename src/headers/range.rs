@@ -4,7 +4,6 @@
 
 use super::*;
 
-use super::parser_helpers::split_once;
 use std::fmt;
 
 /// `Range` header ([RFC 7826 section 18.40](https://tools.ietf.org/html/rfc7826#section-18.40)).
@@ -85,7 +84,7 @@ impl std::str::FromStr for NptRange {
 
         let s = s.strip_prefix('=').ok_or(HeaderParseError)?;
 
-        let (from, to) = split_once(s, '-').ok_or(HeaderParseError)?;
+        let (from, to) = s.split_once('-').ok_or(HeaderParseError)?;
         let from = if from.is_empty() { None } else { Some(from) };
         let to = if to.is_empty() { None } else { Some(to) };
 
@@ -166,8 +165,8 @@ impl std::str::FromStr for NptTime {
             return Ok(NptTime::Now);
         }
 
-        match split_once(s, ':') {
-            None => match split_once(s, '.') {
+        match s.split_once(':') {
+            None => match s.split_once('.') {
                 None => {
                     let seconds = s.parse::<u64>().map_err(|_| HeaderParseError)?;
                     Ok(NptTime::Seconds(seconds, None))
@@ -194,7 +193,7 @@ impl std::str::FromStr for NptTime {
                     .ok_or(HeaderParseError)?;
                 let seconds = it.next().ok_or(HeaderParseError)?;
 
-                if let Some((seconds, subseconds)) = split_once(seconds, '.') {
+                if let Some((seconds, subseconds)) = seconds.split_once('.') {
                     let seconds = seconds.parse::<u8>().map_err(|_| HeaderParseError)?;
                     let digits = subseconds.len();
                     if digits > 9 || digits == 0 {
@@ -244,14 +243,14 @@ impl std::str::FromStr for SmpteRange {
     type Err = HeaderParseError;
 
     fn from_str(s: &str) -> Result<Self, HeaderParseError> {
-        if let Some((ty, range)) = split_once(s, '=') {
+        if let Some((ty, range)) = s.split_once('=') {
             let ty = ty.parse()?;
 
             if range.is_empty() {
                 return Ok(SmpteRange::Empty(ty));
             }
 
-            let (from, to) = split_once(range, '-').ok_or(HeaderParseError)?;
+            let (from, to) = range.split_once('-').ok_or(HeaderParseError)?;
             let from = if from.is_empty() { None } else { Some(from) };
             let to = if to.is_empty() { None } else { Some(to) };
 
@@ -384,7 +383,7 @@ impl std::str::FromStr for SmpteTime {
             return Err(HeaderParseError);
         }
 
-        if let Some((frames, subframes)) = split_once(frames, '.') {
+        if let Some((frames, subframes)) = frames.split_once('.') {
             let frames = frames.parse::<u8>().map_err(|_| HeaderParseError)?;
             let digits = subframes.len();
 
@@ -452,7 +451,7 @@ impl std::str::FromStr for UtcRange {
 
         let s = s.strip_prefix('=').ok_or(HeaderParseError)?;
 
-        let (from, to) = split_once(s, '-').ok_or(HeaderParseError)?;
+        let (from, to) = s.split_once('-').ok_or(HeaderParseError)?;
         let from = if from.is_empty() { None } else { Some(from) };
         let to = if to.is_empty() { None } else { Some(to) };
 
@@ -498,11 +497,11 @@ impl std::str::FromStr for UtcTime {
     type Err = HeaderParseError;
 
     fn from_str(s: &str) -> Result<Self, HeaderParseError> {
-        let (date, time) = split_once(s, 'T').ok_or(HeaderParseError)?;
+        let (date, time) = s.split_once('T').ok_or(HeaderParseError)?;
         let time = time.strip_suffix('Z').ok_or(HeaderParseError)?;
 
         let date = date.parse::<u32>().map_err(|_| HeaderParseError)?;
-        let (time, nanoseconds) = if let Some((time, subseconds)) = split_once(time, '.') {
+        let (time, nanoseconds) = if let Some((time, subseconds)) = time.split_once('.') {
             let time = time.parse::<u32>().map_err(|_| HeaderParseError)?;
             let digits = subseconds.len();
             if digits > 9 || digits == 0 {

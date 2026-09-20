@@ -143,8 +143,6 @@ impl AcceptBuilder {
 
 impl super::TypedHeader for Accept {
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
-        use super::parser_helpers::split_once;
-
         let headers = headers.as_ref();
 
         let header = match headers.get(&ACCEPT) {
@@ -162,8 +160,7 @@ impl super::TypedHeader for Accept {
 
             let mut iter = media_type_range.split(';');
             let media_type = iter.next().ok_or(HeaderParseError)?.trim();
-            let (media_type, media_subtype) =
-                split_once(media_type, '/').ok_or(HeaderParseError)?;
+            let (media_type, media_subtype) = media_type.split_once('/').ok_or(HeaderParseError)?;
 
             let media_type = if media_type == "*" {
                 None
@@ -179,7 +176,7 @@ impl super::TypedHeader for Accept {
             let mut params = Vec::new();
             for param in iter {
                 let param = param.trim();
-                if let Some((param, value)) = split_once(param, '=') {
+                if let Some((param, value)) = param.split_once('=') {
                     params.push((String::from(param), Some(String::from(value))));
                 } else {
                     params.push((String::from(param), None));

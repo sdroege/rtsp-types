@@ -11,6 +11,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - `HeaderName` now hashes case-insensitively, consistent with its equality.
 - `HeaderName` values are now validated as RFC 7826 tokens.
 - Empty list headers are no longer serialized.
+- `NptTime` serializes fractional seconds using the shortest representation.
 
 ### Fixed
 - Fix `HeaderName::cmp` for prefix-related header names.

@@ -117,19 +117,42 @@ pub enum NptTime {
     Hms(u64, u8, u8, Option<u32>),
 }
 
+impl NptTime {
+    fn write_fraction(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Some(nanoseconds) = self.nanoseconds() else {
+            return Ok(());
+        };
+        if nanoseconds == 0 {
+            return Ok(());
+        }
+        let mut fraction = format!("{nanoseconds:09}");
+        while fraction.ends_with('0') {
+            fraction.pop();
+        }
+        write!(fmt, ".{fraction}")
+    }
+
+    fn nanoseconds(&self) -> Option<u32> {
+        match self {
+            NptTime::Now | NptTime::Seconds(_, None) | NptTime::Hms(_, _, _, None) => None,
+            NptTime::Seconds(_, Some(nanoseconds)) | NptTime::Hms(_, _, _, Some(nanoseconds)) => {
+                Some(*nanoseconds)
+            }
+        }
+    }
+}
+
 impl fmt::Display for NptTime {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NptTime::Now => fmt.write_str("now"),
-            NptTime::Seconds(seconds, None) => write!(fmt, "{seconds}"),
-            NptTime::Seconds(seconds, Some(nanoseconds)) => {
-                write!(fmt, "{seconds}.{nanoseconds:09}")
+            NptTime::Seconds(seconds, _) => {
+                write!(fmt, "{seconds}")?;
+                self.write_fraction(fmt)
             }
-            NptTime::Hms(hours, minutes, seconds, None) => {
-                write!(fmt, "{hours:02}:{minutes:02}:{seconds:02}")
-            }
-            NptTime::Hms(hours, minutes, seconds, Some(nanoseconds)) => {
-                write!(fmt, "{hours:02}:{minutes:02}:{seconds:02}.{nanoseconds:09}")
+            NptTime::Hms(hours, minutes, seconds, _) => {
+                write!(fmt, "{hours:02}:{minutes:02}:{seconds:02}")?;
+                self.write_fraction(fmt)
             }
         }
     }
@@ -555,7 +578,15 @@ mod tests {
                     NptTime::Seconds(123, Some(500_000_000)),
                     NptTime::Seconds(456, Some(567_000_000)),
                 )),
-                Some("npt=123.500000000-456.567000000"),
+                None,
+            ),
+            (
+                "npt=123.0-456.000",
+                Range::Npt(NptRange::FromTo(
+                    NptTime::Seconds(123, Some(0)),
+                    NptTime::Seconds(456, Some(0)),
+                )),
+                Some("npt=123-456"),
             ),
             (
                 "npt=43:53:10-1:17:59.123",
@@ -563,7 +594,7 @@ mod tests {
                     NptTime::Hms(43, 53, 10, None),
                     NptTime::Hms(1, 17, 59, Some(123_000_000)),
                 )),
-                Some("npt=43:53:10-01:17:59.123000000"),
+                Some("npt=43:53:10-01:17:59.123"),
             ),
         ];
 

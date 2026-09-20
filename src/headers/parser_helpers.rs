@@ -79,6 +79,7 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
 
     let i = &input[1..];
     let mut o = i;
+    let mut closed = false;
 
     while !o.is_empty() {
         if o.len() >= 2 && o.starts_with(b"\\") {
@@ -90,13 +91,15 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
         } else {
             // Closing quote, also include it
             o = &o[1..];
+            closed = true;
             break;
         }
     }
 
     let (fst, snd) = input.split_at(input.len() - o.len());
-    // Did not end with a quote
-    if !fst.ends_with(b"\"") {
+    // The input did not contain the closing quote, e.g. it ended in an escaped
+    // quote.
+    if !closed {
         return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
     }
 

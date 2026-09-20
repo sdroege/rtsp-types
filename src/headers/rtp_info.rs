@@ -502,6 +502,17 @@ mod tests {
     }
 
     #[test]
+    fn test_info_v2_quoted_string_escaped_quote_end() {
+        // A quoted string ending in an escaped quote is not terminated.
+        let header = "url=\"rtsp://example.com/foo/audio\" ssrc=0A13C760:seq=45102;other=\"a\\\"";
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        assert!(response.typed_header::<super::RtpInfos>().is_err());
+    }
+
+    #[test]
     fn test_info_v1() {
         let header = "url=rtsp://example.com/foo/audio;seq=45102;rtptime=12345678";
         let response = crate::Response::builder(crate::Version::V1_0, crate::StatusCode::Ok)

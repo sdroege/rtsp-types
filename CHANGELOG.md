@@ -7,6 +7,9 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+### Fixed
+- Fix `HeaderName::cmp` for prefix-related header names.
+
 ## [0.1.3]- 2024-09-06
 ### Added
 - Add serde-derived `Serialize` / `Deserialize` implementations behind a

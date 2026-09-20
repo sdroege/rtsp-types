@@ -19,6 +19,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Fix the serialization round-trip of `Transport` specs with multiple modes.
 - Validate `Content-Length` against the body on write and reject messages with conflicting duplicate `Content-Length` headers.
 - Ignore empty elements in comma-separated list headers.
+- Fix the serialization casing of `MediaType::Multipart`.
 
 ## [0.1.3]- 2024-09-06
 ### Added

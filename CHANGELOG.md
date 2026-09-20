@@ -9,6 +9,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ### Changed
 - `HeaderName` now hashes case-insensitively, consistent with its equality.
+- `HeaderName` values are now validated as RFC 7826 tokens.
 
 ### Fixed
 - Fix `HeaderName::cmp` for prefix-related header names.

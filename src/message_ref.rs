@@ -18,7 +18,7 @@ impl<'a> MessageRef<'a> {
     pub fn to_owned<T: From<&'a [u8]>>(&self) -> Result<Message<T>, ParseError> {
         let owned = match self {
             MessageRef::Request(request) => Message::Request(request.to_owned()?),
-            MessageRef::Response(response) => Message::Response(response.to_owned()),
+            MessageRef::Response(response) => Message::Response(response.to_owned()?),
             MessageRef::Data(data) => Message::Data(data.to_owned()),
         };
 
@@ -197,7 +197,7 @@ impl<'a> RequestRef<'a> {
                 .transpose()
                 .map_err(|_| ParseError::Error)?,
             version: self.version,
-            headers: Headers::from_headers_ref(&self.headers),
+            headers: Headers::from_headers_ref(&self.headers)?,
             body: self.body.into(),
         })
     }
@@ -269,14 +269,14 @@ pub struct ResponseRef<'a> {
 }
 
 impl<'a> ResponseRef<'a> {
-    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Response<T> {
-        Response {
+    pub fn to_owned<T: From<&'a [u8]>>(&self) -> Result<Response<T>, ParseError> {
+        Ok(Response {
             version: self.version,
             status: self.status,
             reason_phrase: self.reason_phrase.into(),
-            headers: Headers::from_headers_ref(&self.headers),
+            headers: Headers::from_headers_ref(&self.headers)?,
             body: self.body.into(),
-        }
+        })
     }
 
     pub fn write<'b, W: std::io::Write + 'b>(self, w: &'b mut W) -> Result<(), WriteError>
@@ -457,5 +457,17 @@ mod tests {
             other => panic!("Expected InvalidContentLength, got: {:?}", other),
         }
         assert!(v.is_empty());
+    }
+
+    #[test]
+    fn test_to_owned_invalid_header_name() {
+        // An empty header name parses at the message level (the token
+        // grammar is matched leniently) but must fail the conversion to
+        // an owned message instead of panicking.
+        let msg = b"RTSP/2.0 200 OK\r\n: foo\r\n\r\n";
+
+        let (parsed, _) = MessageRef::parse(msg).expect("should parse");
+
+        assert!(parsed.to_owned::<Vec<u8>>().is_err());
     }
 }

@@ -24,7 +24,9 @@ impl Headers {
         Headers(BTreeMap::new())
     }
 
-    pub(crate) fn from_headers_ref<'a, V: AsRef<[HeaderRef<'a>]>>(headers: V) -> Headers {
+    pub(crate) fn from_headers_ref<'a, V: AsRef<[HeaderRef<'a>]>>(
+        headers: V,
+    ) -> Result<Headers, crate::ParseError> {
         let headers = headers.as_ref();
         let mut owned_headers = Headers::new();
 
@@ -53,14 +55,13 @@ impl Headers {
                 }
             }
 
-            /* This is both already checked when parsing */
-            let name = HeaderName::try_from(header.name).expect("Non-ASCII characters");
+            let name = HeaderName::try_from(header.name).map_err(|_| crate::ParseError::Error)?;
             let value = String::from_utf8(value).expect("Non-UTF8 characters");
 
             owned_headers.append(name, HeaderValue::from(value));
         }
 
-        owned_headers
+        Ok(owned_headers)
     }
 
     /// Insert an RTSP header with its value.
@@ -151,13 +152,25 @@ impl AsMut<Headers> for Headers {
 
 /// Representation of an RTSP header name.
 ///
-/// This ensures that the header name only contains ASCII characters and comparisons on it are
-/// case-insensitive as required by the RTSP RFC.
+/// This ensures that the header name only contains valid token characters as required by
+/// [RFC 7826 section 4.1](https://tools.ietf.org/html/rfc7826#section-4.1) and comparisons on it
+/// are case-insensitive as required by the RTSP RFC.
 ///
 /// RTSP headers are not normalized to a specific case but stored in here as created.
 #[derive(Debug, Clone, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeaderName(Cow<'static, str>);
+
+/// A single token character as defined by [RFC 7826 section 10
+/// (tchar)](https://tools.ietf.org/html/rfc7826#section-10).
+fn is_token_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b)
+}
+
+/// A valid, nonempty header name (token) as defined by RFC 7826.
+fn is_token_str(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(is_token_char)
+}
 
 impl HeaderName {
     /// Get a `&str` representation of the header.
@@ -169,7 +182,7 @@ impl HeaderName {
     ///
     /// This does not involve any heap allocations.
     pub fn from_static_str(v: &'static str) -> Result<HeaderName, AsciiError> {
-        if !v.is_ascii() {
+        if !is_token_str(v) {
             return Err(AsciiError);
         }
 
@@ -186,7 +199,7 @@ impl<'a> TryFrom<&'a [u8]> for HeaderName {
     type Error = AsciiError;
 
     fn try_from(v: &'a [u8]) -> Result<HeaderName, AsciiError> {
-        if !v.is_ascii() {
+        if v.is_empty() || !v.iter().all(|b| is_token_char(*b)) {
             return Err(AsciiError);
         }
 
@@ -213,7 +226,7 @@ impl TryFrom<String> for HeaderName {
     type Error = AsciiError;
 
     fn try_from(v: String) -> Result<HeaderName, AsciiError> {
-        if !v.is_ascii() {
+        if !is_token_str(&v) {
             return Err(AsciiError);
         }
 
@@ -479,6 +492,45 @@ mod tests {
         assert!(a.eq(&b) && a.cmp(&b) == std::cmp::Ordering::Equal);
         assert!(a < c);
         assert!(b < c);
+    }
+
+    #[test]
+    fn test_name_token_validation() {
+        let valid = ["CSeq", "Content-Length", "X-Custom", "!", "~", "0"];
+        let invalid = [
+            "",
+            "Foo Bar",
+            "Foo\tBar",
+            "Foo:Bar",
+            "Foo\r\nX-Injected: 1",
+            "Föö",
+        ];
+
+        for s in valid {
+            assert!(
+                HeaderName::try_from(s).is_ok(),
+                "{:?} should be a valid token",
+                s
+            );
+            assert!(
+                HeaderName::from_static_str(s).is_ok(),
+                "{:?} should be a valid token",
+                s
+            );
+        }
+
+        for s in invalid {
+            assert!(
+                HeaderName::try_from(s).is_err(),
+                "{:?} should not be a valid token",
+                s
+            );
+            assert!(
+                HeaderName::from_static_str(s).is_err(),
+                "{:?} should not be a valid token",
+                s
+            );
+        }
     }
 
     #[test]

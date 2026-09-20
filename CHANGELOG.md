@@ -11,6 +11,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Fix `HeaderName::cmp` for prefix-related header names.
 - Reject quoted strings ending in an escaped quote.
 - Fix `SmpteRange::from_str` rejecting all non-empty ranges.
+- Preserve `/` separators in `Other` transport specs.
 
 ## [0.1.3]- 2024-09-06
 ### Added

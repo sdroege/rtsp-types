@@ -562,7 +562,7 @@ mod parser {
                     }))
                 }
                 other => Ok(Transport::Other(OtherTransport {
-                    spec: other.iter().copied().map(String::from).collect(),
+                    spec: other.join("/"),
                     params,
                 })),
             }
@@ -958,6 +958,40 @@ mod tests {
                 },
             })]
             .into()
+        );
+    }
+
+    #[test]
+    fn test_transport_other_spec() {
+        let header = "MP2T/TS/UDP;unicast;ttl=32";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Other(super::OtherTransport {
+                spec: "MP2T/TS/UDP".into(),
+                params: TransportParameters(std::collections::BTreeMap::from([
+                    ("unicast".to_string(), None),
+                    ("ttl".to_string(), Some("32".to_string())),
+                ])),
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(
+            request2.typed_header::<super::Transports>().unwrap(),
+            Some(transports)
         );
     }
 

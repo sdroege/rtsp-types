@@ -223,6 +223,8 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     };
                     let modes = modes
                         .split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
                         .map(TransportMode::from)
                         .collect::<Vec<_>>();
 
@@ -728,7 +730,7 @@ impl super::TypedHeader for Transports {
                             if first {
                                 first = false;
                             } else {
-                                transports.push_str(", ");
+                                transports.push(',');
                             }
 
                             transports.push_str(mode.as_str());
@@ -959,6 +961,38 @@ mod tests {
             })]
             .into()
         );
+    }
+
+    #[test]
+    fn test_transport_multiple_modes_roundtrip() {
+        let header = "RTP/AVP;mode=\"PLAY,RECORD\"";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    mode: vec![TransportMode::Play, TransportMode::Record],
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(request2.header(&crate::headers::TRANSPORT).unwrap(), header);
     }
 
     #[test]

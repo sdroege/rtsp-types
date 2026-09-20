@@ -97,9 +97,16 @@ pub mod v1 {
                     acc
                 }),
                 |info| -> Result<_, HeaderParseError> {
+                    // Accept quoted URLs as well (seen in the wild).
                     let uri = info
                         .uri
-                        .and_then(|uri| url::Url::parse(uri).ok())
+                        .and_then(|uri| {
+                            let uri = uri
+                                .strip_prefix('"')
+                                .and_then(|uri| uri.strip_suffix('"'))
+                                .unwrap_or(uri);
+                            url::Url::parse(uri).ok()
+                        })
                         .ok_or(HeaderParseError)?;
                     let seq = info
                         .seq
@@ -287,11 +294,21 @@ mod parser {
         }
 
         if is_v2_rtpinfo(input) {
-            let (rem, infos) = v2::parser::rtp_infos(input)?;
-            Ok((rem, RtpInfos::V2(infos)))
+            match v2::parser::rtp_infos(input) {
+                Ok((rem, infos)) => Ok((rem, RtpInfos::V2(infos))),
+                // Fall back to the other parser in case the heuristic
+                // misdetected the version.
+                Err(err) => v1::parser::rtp_infos(input)
+                    .map(|(rem, infos)| (rem, RtpInfos::V1(infos)))
+                    .or(Err(err)),
+            }
         } else {
-            let (rem, infos) = v1::parser::rtp_infos(input)?;
-            Ok((rem, RtpInfos::V1(infos)))
+            match v1::parser::rtp_infos(input) {
+                Ok((rem, infos)) => Ok((rem, RtpInfos::V1(infos))),
+                Err(err) => v2::parser::rtp_infos(input)
+                    .map(|(rem, infos)| (rem, RtpInfos::V2(infos)))
+                    .or(Err(err)),
+            }
         }
     }
 }
@@ -567,5 +584,50 @@ mod tests {
             .empty();
 
         assert_eq!(response, response2);
+    }
+
+    #[test]
+    fn test_info_v1_quoted_url() {
+        let header = "url=\"rtsp://example.com/foo/audio\";seq=45102;rtptime=12345678";
+        let response = crate::Response::builder(crate::Version::V1_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
+
+        assert_eq!(
+            infos,
+            RtpInfos::V1(vec![v1::RtpInfo {
+                uri: url::Url::parse("rtsp://example.com/foo/audio").unwrap(),
+                seq: Some(45102),
+                rtptime: Some(12345678),
+            }])
+        );
+    }
+
+    #[test]
+    fn test_multiple_infos_v1_quoted_url() {
+        let header = "url=\"rtsp://example.com/foo/audio\";seq=45102;rtptime=12345678,url=\"rtsp://example.com/foo/video\";seq=30211;rtptime=29567112";
+        let response = crate::Response::builder(crate::Version::V1_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
+
+        assert_eq!(
+            infos,
+            RtpInfos::V1(vec![
+                v1::RtpInfo {
+                    uri: url::Url::parse("rtsp://example.com/foo/audio").unwrap(),
+                    seq: Some(45102),
+                    rtptime: Some(12345678),
+                },
+                v1::RtpInfo {
+                    uri: url::Url::parse("rtsp://example.com/foo/video").unwrap(),
+                    seq: Some(30211),
+                    rtptime: Some(29567112),
+                }
+            ])
+        );
     }
 }

@@ -138,6 +138,10 @@ impl super::TypedHeader for AcceptRanges {
         for range in header.as_str().split(',') {
             let range = range.trim();
 
+            if range.is_empty() {
+                continue;
+            }
+
             ranges.push(range.parse()?);
         }
 

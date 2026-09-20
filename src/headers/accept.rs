@@ -156,6 +156,10 @@ impl super::TypedHeader for Accept {
         for media_type_range in header.as_str().split(',') {
             let media_type_range = media_type_range.trim();
 
+            if media_type_range.is_empty() {
+                continue;
+            }
+
             let mut iter = media_type_range.split(';');
             let media_type = iter.next().ok_or(HeaderParseError)?.trim();
             let (media_type, media_subtype) =

@@ -224,7 +224,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 "mode" => {
                     let modes = value.ok_or(HeaderParseError)?;
                     let modes = match (modes.starts_with('"'), modes.ends_with('"')) {
-                        (true, true) => &modes[1..(modes.len() - 1)],
+                        (true, true) if modes.len() > 1 => &modes[1..(modes.len() - 1)],
                         (false, false) => &modes,
                         _ => return Err(HeaderParseError),
                     };
@@ -1148,6 +1148,17 @@ mod tests {
         };
 
         assert_eq!(rtp.params.ssrc, vec![0x0D12F123]);
+    }
+
+    #[test]
+    fn test_rtp_transport_parameters_mode_lone_quote() {
+        // A lone quote is not a valid quoted string, it must not panic.
+        let mut params = std::collections::BTreeMap::new();
+        params.insert("mode".to_string(), Some("\"".to_string()));
+
+        assert!(
+            super::RtpTransportParameters::try_from(super::TransportParameters(params)).is_err()
+        );
     }
 
     #[test]

@@ -16,6 +16,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Fix `SmpteRange::from_str` rejecting all non-empty ranges.
 - Preserve `/` separators in `Other` transport specs.
 - Error on interleaved data over 64 KiB instead of silently truncating it.
+- Fix the serialization round-trip of `Transport` specs with multiple modes.
 
 ## [0.1.3]- 2024-09-06
 ### Added

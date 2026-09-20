@@ -259,7 +259,7 @@ impl Ord for HeaderName {
             }
         }
 
-        s.len().cmp(&o.len())
+        self.0.len().cmp(&other.0.len())
     }
 }
 
@@ -445,6 +445,51 @@ impl error::Error for HeaderParseError {}
 
 impl fmt::Display for HeaderParseError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "Error parsing error")
+        write!(fmt, "Error parsing header")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn name(s: &str) -> HeaderName {
+        HeaderName::try_from(s).unwrap()
+    }
+
+    #[test]
+    fn test_name_ordering() {
+        // Case-insensitive equality.
+        assert_eq!(name("session"), name("SESSION"));
+        assert_eq!(
+            name("session").cmp(&name("SESSION")),
+            std::cmp::Ordering::Equal
+        );
+
+        // One name being a prefix of the other must not compare equal.
+        assert_ne!(name("Session"), name("SessionX"));
+        assert!(name("Session") < name("SessionX"));
+        assert!(name("SessionX") > name("session"));
+
+        // Ordering must be consistent with equality.
+        let a = name("foo");
+        let b = name("FOO");
+        let c = name("goo");
+        assert_eq!(a.cmp(&b), std::cmp::Ordering::Equal);
+        assert!(a.eq(&b) && a.cmp(&b) == std::cmp::Ordering::Equal);
+        assert!(a < c);
+        assert!(b < c);
+    }
+
+    #[test]
+    fn test_name_btree_map_prefix() {
+        let mut map: BTreeMap<HeaderName, &str> = BTreeMap::new();
+
+        map.insert(name("Session"), "a");
+        map.insert(name("SessionX"), "b");
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&name("SESSION")).unwrap(), &"a");
+        assert_eq!(map.get(&name("sessionx")).unwrap(), &"b");
     }
 }

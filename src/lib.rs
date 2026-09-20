@@ -512,12 +512,15 @@ impl std::fmt::Display for ParseError {
 pub enum WriteError {
     /// Error reported by the underlying IO type
     IoError(std::io::Error),
+    /// Interleaved data is too large to be serialized
+    DataTooLarge(usize),
 }
 
 impl std::error::Error for WriteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             WriteError::IoError(ref err) => Some(err),
+            WriteError::DataTooLarge(_) => None,
         }
     }
 }
@@ -526,6 +529,12 @@ impl std::fmt::Display for WriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
             WriteError::IoError(ref error) => write!(f, "Write IO error: {error}"),
+            WriteError::DataTooLarge(len) => {
+                write!(
+                    f,
+                    "Interleaved data too large to be serialized: {len} bytes"
+                )
+            }
         }
     }
 }

@@ -160,6 +160,13 @@ impl super::TypedHeader for Require {
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&REQUIRE);
+            return;
+        }
+
         let mut require = String::new();
         for feature in &self.0 {
             if !require.is_empty() {
@@ -176,6 +183,10 @@ impl super::TypedHeader for Require {
 impl super::TypedAppendableHeader for Require {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut require = String::new();
         for feature in &self.0 {
@@ -209,5 +220,30 @@ mod tests {
 
             assert_eq!(&*result, &expected, "{s}");
         }
+    }
+
+    #[test]
+    fn test_insert_into_empty_list() {
+        let require = Require(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(REQUIRE, "implicit");
+        require.insert_into(&mut test_headers);
+
+        assert_eq!(test_headers.get(&REQUIRE), None);
+    }
+
+    #[test]
+    fn test_append_to_empty_list() {
+        let require = Require(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(REQUIRE, "implicit");
+        require.append_to(&mut test_headers);
+
+        assert_eq!(
+            test_headers.get(&REQUIRE).expect("should be Some").as_str(),
+            "implicit"
+        );
     }
 }

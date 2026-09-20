@@ -98,6 +98,13 @@ impl super::TypedHeader for Allow {
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&ALLOW);
+            return;
+        }
+
         let mut allow = String::new();
         for method in &self.0 {
             if !allow.is_empty() {
@@ -114,6 +121,10 @@ impl super::TypedHeader for Allow {
 impl super::TypedAppendableHeader for Allow {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut allow = String::new();
         for method in &self.0 {

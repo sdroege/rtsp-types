@@ -98,6 +98,13 @@ impl super::TypedHeader for MediaRange {
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&MEDIA_RANGE);
+            return;
+        }
+
         let mut ranges = String::new();
         for range in &self.0 {
             if !ranges.is_empty() {
@@ -114,6 +121,10 @@ impl super::TypedHeader for MediaRange {
 impl super::TypedAppendableHeader for MediaRange {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut ranges = String::new();
         for range in &self.0 {

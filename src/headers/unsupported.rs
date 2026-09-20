@@ -160,6 +160,13 @@ impl super::TypedHeader for Unsupported {
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&UNSUPPORTED);
+            return;
+        }
+
         let mut unsupported = String::new();
         for feature in &self.0 {
             if !unsupported.is_empty() {
@@ -176,6 +183,10 @@ impl super::TypedHeader for Unsupported {
 impl super::TypedAppendableHeader for Unsupported {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut unsupported = String::new();
         for feature in &self.0 {

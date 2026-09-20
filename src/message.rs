@@ -470,7 +470,7 @@ impl<Body> Request<Body> {
         self.headers.insert_typed(header);
     }
 
-    /// Removes and RTSP header if it exists.
+    /// Removes the RTSP header if it exists.
     pub fn remove_header(&mut self, name: &HeaderName) {
         self.headers.remove(name);
     }
@@ -818,7 +818,7 @@ impl<Body> Response<Body> {
         self.headers.insert_typed(header);
     }
 
-    /// Removes and RTSP header if it exists.
+    /// Removes the RTSP header if it exists.
     pub fn remove_header(&mut self, name: &HeaderName) {
         self.headers.remove(name);
     }

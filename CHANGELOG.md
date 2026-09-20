@@ -28,6 +28,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Reject a leading `+` in numeric header values.
 - Reject an empty method or request URI in the request line.
 - Trim whitespace around `;` delimiters in `Session` headers.
+- Require `ssrc` values to be exactly 8 hexadecimal digits.
 
 ## [0.1.3]- 2024-09-06
 ### Added

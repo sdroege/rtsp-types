@@ -18,8 +18,6 @@ pub struct ContentType {
 
 impl super::TypedHeader for ContentType {
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
-        use super::parser_helpers::split_once;
-
         let headers = headers.as_ref();
 
         let header = match headers.get(&CONTENT_TYPE) {
@@ -29,7 +27,7 @@ impl super::TypedHeader for ContentType {
 
         let content_type = header.as_str();
 
-        let (media_type, params_string) = match split_once(content_type, ';') {
+        let (media_type, params_string) = match content_type.split_once(';') {
             None => (content_type, None),
             Some((media_type, params_string)) => (media_type, Some(params_string)),
         };
@@ -45,7 +43,7 @@ impl super::TypedHeader for ContentType {
                         return Err(HeaderParseError);
                     }
 
-                    let (param_name, param_value) = match split_once(param, '=') {
+                    let (param_name, param_value) = match param.split_once('=') {
                         Some((param_name, param_value)) => (param_name, Some(param_value)),
                         None => (param, None),
                     };
@@ -76,7 +74,7 @@ impl super::TypedHeader for ContentType {
             }
         };
 
-        let (media_type, media_subtype) = split_once(media_type, '/').ok_or(HeaderParseError)?;
+        let (media_type, media_subtype) = media_type.split_once('/').ok_or(HeaderParseError)?;
         let media_type = media_type.parse().map_err(|_| HeaderParseError)?;
 
         Ok(Some(ContentType {

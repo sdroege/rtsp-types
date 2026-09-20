@@ -50,7 +50,7 @@ impl MediaType {
             MediaType::Video => "video",
             MediaType::Application => "application",
             MediaType::Message => "message",
-            MediaType::Multipart => "Multipart",
+            MediaType::Multipart => "multipart",
             MediaType::Extension(ref s) => s.as_str(),
         }
     }
@@ -271,5 +271,35 @@ impl super::TypedAppendableHeader for Accept {
         }
 
         headers.append(ACCEPT, media_types);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_media_type_multipart_roundtrip() {
+        let media_type: MediaType = "multipart".parse().unwrap();
+
+        assert_eq!(media_type, MediaType::Multipart);
+        assert_eq!(media_type.as_str(), "multipart");
+    }
+
+    #[test]
+    fn test_accept_multipart_roundtrip() {
+        let mut test_headers = Headers::new();
+        test_headers.insert(ACCEPT, "multipart/*");
+        let accept = Accept::from_headers(&test_headers)
+            .expect("should not error")
+            .expect("should be Some");
+
+        let mut out_headers = Headers::new();
+        accept.insert_into(&mut out_headers);
+
+        assert_eq!(
+            out_headers.get(&ACCEPT).expect("should be Some").as_str(),
+            "multipart/*"
+        );
     }
 }

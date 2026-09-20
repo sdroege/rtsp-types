@@ -407,7 +407,7 @@ impl fmt::Display for StatusCode {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             StatusCode::Continue => write!(fmt, "Continue"),
-            StatusCode::Ok => write!(fmt, "Ok"),
+            StatusCode::Ok => write!(fmt, "OK"),
             StatusCode::MovedPermanently => write!(fmt, "Moved Permanently"),
             StatusCode::Found => write!(fmt, "Found"),
             StatusCode::SeeOther => write!(fmt, "See Other"),
@@ -425,15 +425,15 @@ impl fmt::Display for StatusCode {
             StatusCode::Gone => write!(fmt, "Gone"),
             StatusCode::PreconditionFailed => write!(fmt, "Precondition Failed"),
             StatusCode::RequestMessageBodyTooLarge => write!(fmt, "Request Message Body Too Large"),
-            StatusCode::RequestURITooLong => write!(fmt, "Request URI Too Long"),
+            StatusCode::RequestURITooLong => write!(fmt, "Request-URI Too Long"),
             StatusCode::UnsupportedMediaType => write!(fmt, "Unsupported Media Type"),
             StatusCode::ParameterNotUnderstood => write!(fmt, "Parameter Not Understood"),
             StatusCode::Reserved => write!(fmt, "Reserved"),
             StatusCode::NotEnoughBandwidth => write!(fmt, "Not Enough Bandwidth"),
             StatusCode::SessionNotFound => write!(fmt, "Session Not Found"),
-            StatusCode::MethodNotValidInThisState => write!(fmt, "Method Not Valid In This State"),
+            StatusCode::MethodNotValidInThisState => write!(fmt, "Method Not Valid in This State"),
             StatusCode::HeaderFieldNotValidForResource => {
-                write!(fmt, "Header Field Not Valid For Resource")
+                write!(fmt, "Header Field Not Valid for Resource")
             }
             StatusCode::InvalidRange => write!(fmt, "Invalid Range"),
             StatusCode::ParameterIsReadOnly => write!(fmt, "Parameter Is Read-Only"),
@@ -441,7 +441,7 @@ impl fmt::Display for StatusCode {
                 write!(fmt, "Aggregate Operation Not Allowed")
             }
             StatusCode::OnlyAggregateOperationAllowed => {
-                write!(fmt, "Only Aggregate Operation ALlowed")
+                write!(fmt, "Only Aggregate Operation Allowed")
             }
             StatusCode::UnsupportedTransport => write!(fmt, "Unsupported Transport"),
             StatusCode::DestinationUnreachable => write!(fmt, "Destination Unreachable"),
@@ -456,7 +456,7 @@ impl fmt::Display for StatusCode {
                 write!(fmt, "Connection Credentials Not Accepted")
             }
             StatusCode::FailureToEstablishSecureConnection => {
-                write!(fmt, "Failure To Establish Secure Connection")
+                write!(fmt, "Failure to Establish Secure Connection")
             }
             StatusCode::InternalServerError => write!(fmt, "Internal Server Error"),
             StatusCode::NotImplemented => write!(fmt, "Not Implemented"),
@@ -466,7 +466,7 @@ impl fmt::Display for StatusCode {
             StatusCode::RTSPVersionNotSupported => write!(fmt, "RTSP Version Not Supported"),
             StatusCode::OptionNotSupported => write!(fmt, "Option Not Supported"),
             StatusCode::ProxyUnavailable => write!(fmt, "Proxy Unavailable"),
-            StatusCode::Extension(v) => write!(fmt, "Extension {v}"),
+            StatusCode::Extension(v) => write!(fmt, "Status Code {v}"),
         }
     }
 }
@@ -560,5 +560,15 @@ impl std::fmt::Display for WriteError {
 impl From<std::io::Error> for WriteError {
     fn from(v: std::io::Error) -> Self {
         WriteError::IoError(v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_code_extension_display() {
+        assert_eq!(StatusCode::Extension(431).to_string(), "Status Code 431");
     }
 }

@@ -22,6 +22,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Fix the serialization casing of `MediaType::Multipart`.
 - Parse RTSP 1.0 `RTP-Info` headers with quoted URLs.
 - Escape quotes and backslashes in `Transport` address values.
+- Fix `StatusCode` reason phrases and the display of extension status codes.
 
 ## [0.1.3]- 2024-09-06
 ### Added

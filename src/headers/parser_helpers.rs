@@ -64,6 +64,54 @@ where
     T::from_str(s).map_err(|_| ())
 }
 
+/// Parse a float in the `FLOAT`/`POS-FLOAT` form of RFC 7826 section 20.
+///
+/// Unlike `str::parse()`, scientific notation, `NaN`, `inf`, a leading
+/// `+` sign and, if `allow_negative` is false, a leading `-` sign are
+/// rejected.
+pub(crate) fn parse_float(s: &str, allow_negative: bool) -> Result<f64, ()> {
+    let bytes = s.as_bytes();
+    let mut start = 0;
+
+    if let Some(&first) = bytes.first() {
+        if first == b'-' {
+            if !allow_negative {
+                return Err(());
+            }
+            start = 1;
+        }
+    }
+
+    let mut digits_before_dot = 0;
+    let mut digits_after_dot = 0;
+    let mut seen_dot = false;
+
+    for &byte in &bytes[start..] {
+        match byte {
+            b'0'..=b'9' => {
+                if seen_dot {
+                    digits_after_dot += 1;
+                } else {
+                    digits_before_dot += 1;
+                }
+            }
+            b'.' if !seen_dot => seen_dot = true,
+            _ => return Err(()),
+        }
+    }
+
+    if digits_before_dot == 0 || (seen_dot && digits_after_dot == 0) {
+        return Err(());
+    }
+
+    let value = s.parse::<f64>().map_err(|_| ())?;
+    if !value.is_finite() {
+        return Err(());
+    }
+
+    Ok(value)
+}
+
 pub(super) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
     pub(super) fn is_token_char(i: u8) -> bool {
         is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)

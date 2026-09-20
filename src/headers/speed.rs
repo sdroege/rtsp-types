@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers::parse_float;
 use super::*;
 
 /// `Speed` header ([RFC 7826 section 18.50](https://tools.ietf.org/html/rfc7826#section-18.50)).
@@ -56,9 +57,7 @@ impl super::TypedHeader for Speed {
             Some(header) => header,
         };
 
-        let speed = header
-            .as_str()
-            .parse::<f64>()
+        let speed = parse_float(header.as_str(), false)
             .map(Speed)
             .map_err(|_| HeaderParseError)?;
 
@@ -69,5 +68,51 @@ impl super::TypedHeader for Speed {
         let headers = headers.as_mut();
 
         headers.insert(SPEED, self.0.to_string());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_speed() {
+        let headers = [("1", 1.0), ("1.5", 1.5), ("0", 0.0)];
+
+        for (header, expected) in &headers {
+            let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .header(crate::headers::SPEED, *header)
+                .empty();
+
+            let speed = request
+                .typed_header::<super::Speed>()
+                .unwrap_or_else(|_| panic!("couldn't parse {}", header))
+                .unwrap();
+
+            assert_eq!(*speed, *expected, "{}", header);
+
+            let request2 = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .typed_header(&speed)
+                .empty();
+
+            let speed = request2.header(&crate::headers::SPEED).unwrap();
+
+            assert_eq!(speed, *header, "{}", header);
+        }
+    }
+
+    #[test]
+    fn test_speed_invalid() {
+        let headers = ["", "inf", "NaN", "1e3", "+1", "-1", "-", "1."];
+
+        for header in &headers {
+            let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
+                .header(crate::headers::SPEED, *header)
+                .empty();
+
+            assert!(
+                request.typed_header::<super::Speed>().is_err(),
+                "{}",
+                header
+            );
+        }
     }
 }

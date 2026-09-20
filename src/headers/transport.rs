@@ -596,6 +596,14 @@ impl super::TypedHeader for Transports {
 
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty (and unparseable) header
+            // value.
+            headers.remove(&TRANSPORT);
+            return;
+        }
+
         let mut transports = String::new();
         for transport in &self.0 {
             if !transports.is_empty() {
@@ -1105,5 +1113,15 @@ mod tests {
             ]
             .into()
         );
+    }
+    #[test]
+    fn test_insert_into_empty_list() {
+        let transports = Transports(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(TRANSPORT, "RTP/AVP;unicast");
+        transports.insert_into(&mut test_headers);
+
+        assert_eq!(test_headers.get(&TRANSPORT), None);
     }
 }

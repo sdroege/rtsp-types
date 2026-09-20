@@ -204,6 +204,13 @@ impl super::TypedHeader for Accept {
 
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&ACCEPT);
+            return;
+        }
+
         let mut media_types = String::new();
         for media_type in &self.0 {
             if !media_types.is_empty() {
@@ -241,6 +248,10 @@ impl super::TypedAppendableHeader for Accept {
         use std::fmt::Write;
 
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut media_types = String::new();
         for media_type in &self.0 {
@@ -300,6 +311,31 @@ mod tests {
         assert_eq!(
             out_headers.get(&ACCEPT).expect("should be Some").as_str(),
             "multipart/*"
+        );
+    }
+
+    #[test]
+    fn test_insert_into_empty_list() {
+        let accept = Accept(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(ACCEPT, "video/*");
+        accept.insert_into(&mut test_headers);
+
+        assert_eq!(test_headers.get(&ACCEPT), None);
+    }
+
+    #[test]
+    fn test_append_to_empty_list() {
+        let accept = Accept(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(ACCEPT, "video/*");
+        accept.append_to(&mut test_headers);
+
+        assert_eq!(
+            test_headers.get(&ACCEPT).expect("should be Some").as_str(),
+            "video/*"
         );
     }
 }

@@ -256,6 +256,13 @@ impl super::TypedHeader for MediaProperties {
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
+        if self.0.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&MEDIA_PROPERTIES);
+            return;
+        }
+
         let mut properties = String::new();
         for property in &self.0 {
             if !properties.is_empty() {
@@ -272,6 +279,10 @@ impl super::TypedHeader for MediaProperties {
 impl super::TypedAppendableHeader for MediaProperties {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
+
+        if self.0.is_empty() {
+            return;
+        }
 
         let mut properties = String::new();
         for property in &self.0 {
@@ -326,5 +337,33 @@ mod tests {
             .typed_header(&props)
             .empty();
         assert_eq!(response, response2);
+    }
+
+    #[test]
+    fn test_insert_into_empty_list() {
+        let props = MediaProperties(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(MEDIA_PROPERTIES, "Unlimited");
+        props.insert_into(&mut test_headers);
+
+        assert_eq!(test_headers.get(&MEDIA_PROPERTIES), None);
+    }
+
+    #[test]
+    fn test_append_to_empty_list() {
+        let props = MediaProperties(Vec::new());
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(MEDIA_PROPERTIES, "Unlimited");
+        props.append_to(&mut test_headers);
+
+        assert_eq!(
+            test_headers
+                .get(&MEDIA_PROPERTIES)
+                .expect("should be Some")
+                .as_str(),
+            "Unlimited"
+        );
     }
 }

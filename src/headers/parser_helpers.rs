@@ -261,6 +261,20 @@ pub(crate) fn write_quoted_string(f: &mut String, value: &str) {
     f.push('"');
 }
 
+/// Splits a comma-separated list into trimmed items, skipping empty
+/// elements.
+pub(crate) fn split_list(value: &str) -> impl Iterator<Item = &str> {
+    value
+        .split(',')
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+}
+
+/// Joins the given items into a comma-separated list.
+pub(crate) fn join_list<'a>(items: impl IntoIterator<Item = &'a str>) -> String {
+    items.into_iter().collect::<Vec<_>>().join(", ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,5 +288,13 @@ mod tests {
         let (rest, out) = trim(value)(b"\t \tab \t").unwrap();
         assert_eq!(out, b"ab");
         assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn list_helpers() {
+        let items: Vec<&str> = split_list(" a ,,b ,\t").collect();
+        assert_eq!(items, vec!["a", "b"]);
+        assert_eq!(join_list(items), "a, b");
+        assert_eq!(join_list(std::iter::empty::<&str>()), "");
     }
 }

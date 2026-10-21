@@ -3,10 +3,11 @@
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
 use super::features::*;
+use super::parser_helpers::{join_list, split_list};
 use super::*;
 
 /// `Unsupported` header ([RFC 7826 section 18.55](https://tools.ietf.org/html/rfc7826#section-18.55)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Unsupported(Vec<String>);
 
@@ -143,16 +144,7 @@ impl super::TypedHeader for Unsupported {
             Some(header) => header,
         };
 
-        let mut unsupported = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            if feature.is_empty() {
-                continue;
-            }
-
-            unsupported.push(feature.into());
-        }
+        let unsupported = split_list(header.as_str()).map(String::from).collect();
 
         Ok(Some(Unsupported(unsupported)))
     }
@@ -167,16 +159,10 @@ impl super::TypedHeader for Unsupported {
             return;
         }
 
-        let mut unsupported = String::new();
-        for feature in &self.0 {
-            if !unsupported.is_empty() {
-                unsupported.push_str(", ");
-            }
-
-            unsupported.push_str(feature);
-        }
-
-        headers.insert(UNSUPPORTED, unsupported);
+        headers.insert(
+            UNSUPPORTED,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }
 
@@ -188,15 +174,9 @@ impl super::TypedAppendableHeader for Unsupported {
             return;
         }
 
-        let mut unsupported = String::new();
-        for feature in &self.0 {
-            if !unsupported.is_empty() {
-                unsupported.push_str(", ");
-            }
-
-            unsupported.push_str(feature);
-        }
-
-        headers.append(UNSUPPORTED, unsupported);
+        headers.append(
+            UNSUPPORTED,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }

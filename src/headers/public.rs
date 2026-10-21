@@ -2,11 +2,12 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers::{join_list, split_list};
 use super::*;
 use crate::Method;
 
 /// `Public` header ([RFC 7826 section 18.39](https://tools.ietf.org/html/rfc7826#section-18.39)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Public(Vec<Method>);
 
@@ -81,16 +82,7 @@ impl super::TypedHeader for Public {
             Some(header) => header,
         };
 
-        let mut public = Vec::new();
-        for method in header.as_str().split(',') {
-            let method = method.trim();
-
-            if method.is_empty() {
-                continue;
-            }
-
-            public.push(method.into());
-        }
+        let public = split_list(header.as_str()).map(Method::from).collect();
 
         Ok(Some(Public(public)))
     }
@@ -105,16 +97,7 @@ impl super::TypedHeader for Public {
             return;
         }
 
-        let mut public = String::new();
-        for method in &self.0 {
-            if !public.is_empty() {
-                public.push_str(", ");
-            }
-
-            public.push_str(method.into());
-        }
-
-        headers.insert(PUBLIC, public);
+        headers.insert(PUBLIC, join_list(self.0.iter().map(|method| method.into())));
     }
 }
 
@@ -126,15 +109,6 @@ impl super::TypedAppendableHeader for Public {
             return;
         }
 
-        let mut public = String::new();
-        for method in &self.0 {
-            if !public.is_empty() {
-                public.push_str(", ");
-            }
-
-            public.push_str(method.into());
-        }
-
-        headers.append(PUBLIC, public);
+        headers.append(PUBLIC, join_list(self.0.iter().map(|method| method.into())));
     }
 }

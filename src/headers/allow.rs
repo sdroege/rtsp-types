@@ -2,11 +2,12 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers::{join_list, split_list};
 use super::*;
 use crate::Method;
 
 /// `Allow` header ([RFC 7826 section 18.6](https://tools.ietf.org/html/rfc7826#section-18.6)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Allow(Vec<Method>);
 
@@ -81,16 +82,7 @@ impl super::TypedHeader for Allow {
             Some(header) => header,
         };
 
-        let mut allow = Vec::new();
-        for method in header.as_str().split(',') {
-            let method = method.trim();
-
-            if method.is_empty() {
-                continue;
-            }
-
-            allow.push(method.into());
-        }
+        let allow = split_list(header.as_str()).map(Method::from).collect();
 
         Ok(Some(Allow(allow)))
     }
@@ -105,16 +97,7 @@ impl super::TypedHeader for Allow {
             return;
         }
 
-        let mut allow = String::new();
-        for method in &self.0 {
-            if !allow.is_empty() {
-                allow.push_str(", ");
-            }
-
-            allow.push_str(method.into());
-        }
-
-        headers.insert(ALLOW, allow);
+        headers.insert(ALLOW, join_list(self.0.iter().map(|method| method.into())));
     }
 }
 
@@ -126,15 +109,6 @@ impl super::TypedAppendableHeader for Allow {
             return;
         }
 
-        let mut allow = String::new();
-        for method in &self.0 {
-            if !allow.is_empty() {
-                allow.push_str(", ");
-            }
-
-            allow.push_str(method.into());
-        }
-
-        headers.append(ALLOW, allow);
+        headers.append(ALLOW, join_list(self.0.iter().map(|method| method.into())));
     }
 }

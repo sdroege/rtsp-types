@@ -260,3 +260,19 @@ pub(crate) fn write_quoted_string(f: &mut String, value: &str) {
     }
     f.push('"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trim_trims_tabs() {
+        fn value(i: &[u8]) -> IResult<&[u8], &[u8]> {
+            nom::bytes::complete::take_while(|c: u8| c.is_ascii_alphabetic())(i)
+        }
+
+        let (rest, out) = trim(value)(b"\t \tab \t").unwrap();
+        assert_eq!(out, b"ab");
+        assert!(rest.is_empty());
+    }
+}

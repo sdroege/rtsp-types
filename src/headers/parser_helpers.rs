@@ -8,6 +8,8 @@ use nom::character::is_alphanumeric;
 use nom::{Err, IResult, Needed};
 use std::str;
 
+use super::HeaderParseError;
+
 pub(super) fn cond_parser<I, O1, O2, E: nom::error::ParseError<I>, F, G>(
     mut cond: F,
     mut parser: G,
@@ -169,4 +171,92 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
     assert!(fst.starts_with(b"\""));
 
     Ok((snd, fst))
+}
+
+/// Splits `s` on `separator`, ignoring separators inside quoted strings.
+pub(crate) fn split_unquoted(s: &str, separator: u8) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut start = 0;
+    let mut in_quotes = false;
+    let mut escaped = false;
+
+    for (index, byte) in s.bytes().enumerate() {
+        if in_quotes {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_quotes = false;
+            }
+        } else if byte == b'"' {
+            in_quotes = true;
+        } else if byte == separator {
+            result.push(&s[start..index]);
+            start = index + 1;
+        }
+    }
+
+    result.push(&s[start..]);
+
+    result
+}
+
+/// Parses a `quoted-string` value, stripping the surrounding quotes and
+/// unescaping quoted pairs.
+pub(crate) fn parse_quoted_string(s: &str) -> Result<String, HeaderParseError> {
+    let bytes = s.as_bytes();
+
+    if bytes.first() != Some(&b'"') {
+        return Err(HeaderParseError);
+    }
+
+    let mut value = Vec::new();
+    let mut escaped = false;
+    let mut closed = false;
+
+    for (index, byte) in bytes[1..].iter().enumerate() {
+        if escaped {
+            if *byte != b'"' && *byte != b'\\' {
+                return Err(HeaderParseError);
+            }
+            value.push(*byte);
+            escaped = false;
+        } else if *byte == b'\\' {
+            escaped = true;
+        } else if *byte == b'"' {
+            if index + 1 != bytes.len() - 1 {
+                return Err(HeaderParseError);
+            }
+            closed = true;
+            break;
+        } else if !(byte == &b' '
+            || byte == &b'!'
+            || (b'#'..=b'[').contains(byte)
+            || (b']'..=b'~').contains(byte))
+        {
+            return Err(HeaderParseError);
+        } else {
+            value.push(*byte);
+        }
+    }
+
+    if !closed || escaped {
+        return Err(HeaderParseError);
+    }
+
+    String::from_utf8(value).map_err(|_| HeaderParseError)
+}
+
+/// Writes `value` as a quoted string to `f`, escaping quotes and
+/// backslashes.
+pub(crate) fn write_quoted_string(f: &mut String, value: &str) {
+    f.push('"');
+    for char in value.chars() {
+        if char == '"' || char == '\\' {
+            f.push('\\');
+        }
+        f.push(char);
+    }
+    f.push('"');
 }

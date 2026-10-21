@@ -32,6 +32,11 @@ impl super::TypedHeader for Speed {
         let lower_bound = parse_float(lower.trim(), false).map_err(|_| HeaderParseError)?;
         let upper_bound = parse_float(upper.trim(), false).map_err(|_| HeaderParseError)?;
 
+        // A speed value of zero is invalid.
+        if lower_bound == 0.0 || upper_bound == 0.0 {
+            return Err(HeaderParseError);
+        }
+
         Ok(Some(Speed {
             lower_bound,
             upper_bound,
@@ -84,7 +89,8 @@ mod tests {
     #[test]
     fn test_speed_invalid() {
         let headers = [
-            "", "-", "1", "1-", "-2", "1-2-3", "1.--2", "inf-NaN", "1e3-2", "-1-2",
+            "", "-", "1", "1-", "-2", "1-2-3", "1.--2", "inf-NaN", "1e3-2", "-1-2", "0-1", "1-0",
+            "0.0-0.0",
         ];
 
         for header in &headers {

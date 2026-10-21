@@ -43,6 +43,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Do not panic when serialization fails.
 - Route `Range` extension specs by exact type name instead of prefix.
 - Reject conflicting duplicate parameters within one `Transport` spec.
+- Reject zero values for `Scale` and `Speed`.
 
 ## [0.1.3]- 2024-09-06
 ### Added

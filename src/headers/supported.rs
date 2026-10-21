@@ -3,10 +3,11 @@
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
 use super::features::*;
+use super::parser_helpers::{join_list, split_list};
 use super::*;
 
 /// `Supported` header ([RFC 7826 section 18.51](https://tools.ietf.org/html/rfc7826#section-18.51)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Supported(Vec<String>);
 
@@ -143,16 +144,7 @@ impl super::TypedHeader for Supported {
             Some(header) => header,
         };
 
-        let mut supported = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            if feature.is_empty() {
-                continue;
-            }
-
-            supported.push(feature.into());
-        }
+        let supported = split_list(header.as_str()).map(String::from).collect();
 
         Ok(Some(Supported(supported)))
     }
@@ -167,16 +159,10 @@ impl super::TypedHeader for Supported {
             return;
         }
 
-        let mut supported = String::new();
-        for feature in &self.0 {
-            if !supported.is_empty() {
-                supported.push_str(", ");
-            }
-
-            supported.push_str(feature);
-        }
-
-        headers.insert(SUPPORTED, supported);
+        headers.insert(
+            SUPPORTED,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }
 
@@ -188,15 +174,9 @@ impl super::TypedAppendableHeader for Supported {
             return;
         }
 
-        let mut supported = String::new();
-        for feature in &self.0 {
-            if !supported.is_empty() {
-                supported.push_str(", ");
-            }
-
-            supported.push_str(feature);
-        }
-
-        headers.append(SUPPORTED, supported);
+        headers.append(
+            SUPPORTED,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }

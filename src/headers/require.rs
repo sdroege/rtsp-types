@@ -3,10 +3,11 @@
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
 use super::features::*;
+use super::parser_helpers::{join_list, split_list};
 use super::*;
 
 /// `Require` header ([RFC 7826 section 18.43](https://tools.ietf.org/html/rfc7826#section-18.43)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Require(Vec<String>);
 
@@ -143,16 +144,7 @@ impl super::TypedHeader for Require {
             Some(header) => header,
         };
 
-        let mut require = Vec::new();
-        for feature in header.as_str().split(',') {
-            let feature = feature.trim();
-
-            if feature.is_empty() {
-                continue;
-            }
-
-            require.push(feature.into());
-        }
+        let require = split_list(header.as_str()).map(String::from).collect();
 
         Ok(Some(Require(require)))
     }
@@ -167,16 +159,10 @@ impl super::TypedHeader for Require {
             return;
         }
 
-        let mut require = String::new();
-        for feature in &self.0 {
-            if !require.is_empty() {
-                require.push_str(", ");
-            }
-
-            require.push_str(feature);
-        }
-
-        headers.insert(REQUIRE, require);
+        headers.insert(
+            REQUIRE,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }
 
@@ -188,16 +174,10 @@ impl super::TypedAppendableHeader for Require {
             return;
         }
 
-        let mut require = String::new();
-        for feature in &self.0 {
-            if !require.is_empty() {
-                require.push_str(", ");
-            }
-
-            require.push_str(feature);
-        }
-
-        headers.append(REQUIRE, require);
+        headers.append(
+            REQUIRE,
+            join_list(self.0.iter().map(|feature| feature.as_str())),
+        );
     }
 }
 
@@ -231,6 +211,18 @@ mod tests {
         require.insert_into(&mut test_headers);
 
         assert_eq!(test_headers.get(&REQUIRE), None);
+    }
+
+    #[test]
+    fn test_partial_eq() {
+        assert_eq!(
+            Require::builder().play_basic().build(),
+            Require::builder().play_basic().build()
+        );
+        assert_ne!(
+            Require::builder().play_basic().build(),
+            Require::builder().play_speed().build()
+        );
     }
 
     #[test]

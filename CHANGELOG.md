@@ -47,6 +47,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Reject conflicting duplicate parameters within one `Transport` spec.
 - Reject zero values for `Scale` and `Speed`.
 - Validate the time components in `Range` values.
+- Split `Media-Range` lists on commas outside quoted strings.
 
 ## [0.1.3]- 2024-09-06
 ### Added

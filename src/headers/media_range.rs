@@ -82,7 +82,7 @@ impl super::TypedHeader for MediaRange {
         };
 
         let mut ranges = Vec::new();
-        for range in header.as_str().split(',') {
+        for range in parser_helpers::split_unquoted(header.as_str(), b',') {
             let range = range.trim();
 
             if range.is_empty() {
@@ -176,5 +176,18 @@ mod tests {
 
         let different = MediaRange::from(vec!["npt=0-10".parse::<Range>().unwrap()]);
         assert_ne!(a, different);
+    }
+
+    #[test]
+    fn test_media_range_quoted_comma() {
+        let mut test_headers = Headers::new();
+        test_headers.insert(MEDIA_RANGE, "asef=\"a,b\", npt=0-10");
+        let parsed = MediaRange::from_headers(&test_headers)
+            .expect("should not error")
+            .expect("should be Some");
+
+        let expected: Vec<Range> =
+            vec!["asef=\"a,b\"".parse().unwrap(), "npt=0-10".parse().unwrap()];
+        assert_eq!(&*parsed, &expected);
     }
 }

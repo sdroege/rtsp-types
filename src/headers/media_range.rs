@@ -6,7 +6,7 @@ use super::Range;
 use super::*;
 
 /// `Media-Range` header ([RFC 7826 section 18.30](https://tools.ietf.org/html/rfc7826#section-18.30)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MediaRange(Vec<Range>);
 
@@ -158,5 +158,23 @@ mod tests {
 
             assert_eq!(&*result, &expected, "{s}");
         }
+    }
+
+    #[test]
+    fn test_media_range_eq() {
+        let ranges = vec!["npt=0-10".parse().unwrap(), "smpte=1:2:3-".parse().unwrap()];
+        let a = MediaRange::from(ranges.clone());
+        let b = MediaRange::from(ranges);
+        assert_eq!(a, b);
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(MEDIA_RANGE, "npt=0-10,smpte=1:2:3-");
+        let parsed = MediaRange::from_headers(&test_headers)
+            .expect("should not error")
+            .expect("should be Some");
+        assert_eq!(parsed, a);
+
+        let different = MediaRange::from(vec!["npt=0-10".parse::<Range>().unwrap()]);
+        assert_ne!(a, different);
     }
 }

@@ -7,7 +7,7 @@ use super::*;
 use std::fmt;
 
 /// `Accept-Ranges` header ([RFC 7826 section 18.5](https://tools.ietf.org/html/rfc7826#section-18.5)).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AcceptRanges(Vec<RangeUnit>);
 
@@ -189,5 +189,32 @@ impl super::TypedAppendableHeader for AcceptRanges {
         }
 
         headers.append(ACCEPT_RANGES, ranges);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_accept_ranges_eq() {
+        let units = vec![
+            RangeUnit::Npt,
+            RangeUnit::Clock,
+            RangeUnit::Extension(String::from("asef")),
+        ];
+        let a = AcceptRanges::from(units.clone());
+        let b = AcceptRanges::from(units);
+        assert_eq!(a, b);
+
+        let mut test_headers = Headers::new();
+        test_headers.insert(ACCEPT_RANGES, "npt, clock, asef");
+        let parsed = AcceptRanges::from_headers(&test_headers)
+            .expect("should not error")
+            .expect("should be Some");
+        assert_eq!(parsed, a);
+
+        let different = AcceptRanges::from(vec![RangeUnit::Npt]);
+        assert_ne!(a, different);
     }
 }

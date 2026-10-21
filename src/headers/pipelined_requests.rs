@@ -57,11 +57,11 @@ impl super::TypedHeader for PipelinedRequests {
             Some(header) => header,
         };
 
-        let cseq = parse_digits::<u32>(header.as_str())
+        let pipelined_requests = parse_digits::<u32>(header.as_str())
             .map(PipelinedRequests)
             .map_err(|_| HeaderParseError)?;
 
-        Ok(Some(cseq))
+        Ok(Some(pipelined_requests))
     }
 
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {

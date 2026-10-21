@@ -428,7 +428,7 @@ mod parser {
     use nom::branch::alt;
     use nom::bytes::complete::tag;
     use nom::combinator::{all_consuming, map_res};
-    use nom::multi::{fold_many0, separated_list1};
+    use nom::multi::{many0, separated_list1};
     use nom::sequence::{preceded, tuple};
     use nom::{Err, IResult, Needed};
     use std::str;
@@ -528,15 +528,29 @@ mod parser {
     }
 
     fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
-        fold_many0(
-            preceded(trim(tag(b";")), parameter),
-            || TransportParameters(BTreeMap::new()),
-            |mut acc, (name, value)| {
-                // FIXME: We assume each parameter appears only once
-                acc.0.insert(name.into(), value.map(String::from));
-                acc
-            },
-        )(input)
+        let (input, params) = many0(preceded(trim(tag(b";")), parameter))(input)?;
+
+        // A parameter shall appear at most once within one transport-spec;
+        // duplicates with identical values are tolerated, conflicting ones
+        // are rejected.
+        let mut map = BTreeMap::new();
+        for (name, value) in params {
+            let value = value.map(String::from);
+            match map.get(name) {
+                Some(previous) if *previous != value => {
+                    return Err(Err::Failure(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::MapRes,
+                    )));
+                }
+                Some(_) => (),
+                None => {
+                    map.insert(name.into(), value);
+                }
+            }
+        }
+
+        Ok((input, TransportParameters(map)))
     }
 
     fn spec(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
@@ -1180,6 +1194,50 @@ mod tests {
                 request
                     .typed_header::<super::Transports>()
                     .map_or(true, |transports| transports.is_none()),
+                "{} should fail",
+                header
+            );
+        }
+    }
+
+    #[test]
+    fn test_transport_duplicate_parameters() {
+        // Duplicate parameters with identical values within one transport
+        // spec are accepted, conflicting ones are rejected. Duplicates
+        // across separate transport specs are always fine.
+        let ok_headers = [
+            "RTP/AVP;unicast;client_port=5000-5001;client_port=5000-5001",
+            "RTP/AVP;unicast;unicast",
+            "RTP/AVP;unicast;client_port=5000-5001,RTP/AVP;unicast;client_port=6000-6001",
+        ];
+        let bad_headers = [
+            "RTP/AVP;unicast;client_port=5000-5001;client_port=6000-6001",
+            "RTP/AVP;unicast;ssrc=0D12F123;ssrc=1D12F123",
+            "RTP/AVP;unicast;unknown=1;unknown=2",
+        ];
+
+        for header in ok_headers {
+            let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+                .header(crate::headers::TRANSPORT, header)
+                .empty();
+
+            assert!(
+                request
+                    .typed_header::<super::Transports>()
+                    .unwrap_or_else(|_| panic!("couldn't parse {}", header))
+                    .is_some(),
+                "{} should parse",
+                header
+            );
+        }
+
+        for header in bad_headers {
+            let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+                .header(crate::headers::TRANSPORT, header)
+                .empty();
+
+            assert!(
+                request.typed_header::<super::Transports>().is_err(),
                 "{} should fail",
                 header
             );

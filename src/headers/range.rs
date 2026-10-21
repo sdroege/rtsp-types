@@ -4,6 +4,7 @@
 
 use super::*;
 
+use std::convert::TryFrom;
 use std::fmt;
 
 /// `Range` header ([RFC 7826 section 18.40](https://tools.ietf.org/html/rfc7826#section-18.40)).
@@ -177,16 +178,19 @@ impl std::str::FromStr for NptTime {
         match s.split_once(':') {
             None => match s.split_once('.') {
                 None => {
-                    let seconds = s.parse::<u64>().map_err(|_| HeaderParseError)?;
+                    let seconds = parser_helpers::parse_digits::<u64>(s)
+                        .map_err(|_| HeaderParseError)?;
                     Ok(NptTime::Seconds(seconds, None))
                 }
                 Some((seconds, subseconds)) => {
-                    let seconds = seconds.parse::<u64>().map_err(|_| HeaderParseError)?;
+                    let seconds = parser_helpers::parse_digits::<u64>(seconds)
+                        .map_err(|_| HeaderParseError)?;
                     let digits = subseconds.len();
                     if digits > 9 || digits == 0 {
                         return Err(HeaderParseError);
                     }
-                    let subseconds = subseconds.parse::<u32>().map_err(|_| HeaderParseError)?;
+                    let subseconds = parser_helpers::parse_digits::<u32>(subseconds)
+                        .map_err(|_| HeaderParseError)?;
 
                     let nanoseconds = subseconds * u32::pow(10, 9 - digits as u32);
 
@@ -194,27 +198,41 @@ impl std::str::FromStr for NptTime {
                 }
             },
             Some((hours, s)) => {
-                let hours = hours.parse::<u64>().map_err(|_| HeaderParseError)?;
+                let hours = parser_helpers::parse_digits::<u64>(hours)
+                    .map_err(|_| HeaderParseError)?;
                 let mut it = s.split(':');
                 let minutes = it
                     .next()
-                    .and_then(|s| s.parse::<u8>().ok())
+                    .and_then(|s| parser_helpers::parse_digits::<u8>(s).ok())
                     .ok_or(HeaderParseError)?;
+                // Minutes and seconds are 0-59 per RFC 7826 section 20.39.
+                if minutes >= 60 {
+                    return Err(HeaderParseError);
+                }
                 let seconds = it.next().ok_or(HeaderParseError)?;
 
                 if let Some((seconds, subseconds)) = seconds.split_once('.') {
-                    let seconds = seconds.parse::<u8>().map_err(|_| HeaderParseError)?;
+                    let seconds = parser_helpers::parse_digits::<u8>(seconds)
+                        .map_err(|_| HeaderParseError)?;
+                    if seconds >= 60 {
+                        return Err(HeaderParseError);
+                    }
                     let digits = subseconds.len();
                     if digits > 9 || digits == 0 {
                         return Err(HeaderParseError);
                     }
-                    let subseconds = subseconds.parse::<u32>().map_err(|_| HeaderParseError)?;
+                    let subseconds = parser_helpers::parse_digits::<u32>(subseconds)
+                        .map_err(|_| HeaderParseError)?;
 
                     let nanoseconds = subseconds * u32::pow(10, 9 - digits as u32);
 
                     Ok(NptTime::Hms(hours, minutes, seconds, Some(nanoseconds)))
                 } else {
-                    let seconds = seconds.parse::<u8>().map_err(|_| HeaderParseError)?;
+                    let seconds = parser_helpers::parse_digits::<u8>(seconds)
+                        .map_err(|_| HeaderParseError)?;
+                    if seconds >= 60 {
+                        return Err(HeaderParseError);
+                    }
 
                     Ok(NptTime::Hms(hours, minutes, seconds, None))
                 }
@@ -270,6 +288,18 @@ impl std::str::FromStr for SmpteRange {
                 .map(|s| s.parse::<SmpteTime>().map_err(|_| HeaderParseError))
                 .transpose()?;
 
+            if let Some(frames_per_second) = ty.frames_per_second() {
+                for time in from.iter().chain(to.iter()) {
+                    // The frames field is bounded by the frame rate of the
+                    // timecode type, e.g. 0-29 for 30 frames/sec.
+                    if let Some((frames, _)) = time.frames {
+                        if frames >= frames_per_second {
+                            return Err(HeaderParseError);
+                        }
+                    }
+                }
+            }
+
             match (from, to) {
                 (Some(from), Some(to)) => Ok(SmpteRange::FromTo(ty, from, to)),
                 (None, Some(to)) => Ok(SmpteRange::To(ty, to)),
@@ -321,6 +351,18 @@ impl std::str::FromStr for SmpteType {
     }
 }
 
+impl SmpteType {
+    /// Frame rate in frames per second, for the timecode types with a known
+    /// frame rate.
+    fn frames_per_second(&self) -> Option<u8> {
+        match self {
+            SmpteType::Smpte | SmpteType::Smpte30Drop => Some(30),
+            SmpteType::Smpte25 => Some(25),
+            SmpteType::Other(_) => None,
+        }
+    }
+}
+
 /// SMPTE-Relative Timecode ([RFC 7826 section 4.4.1](https://tools.ietf.org/html/rfc7826#section-4.4.1)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -361,20 +403,34 @@ impl std::str::FromStr for SmpteTime {
     type Err = HeaderParseError;
 
     fn from_str(s: &str) -> Result<Self, HeaderParseError> {
+        // All smpte-time components are `1*2DIGIT` per RFC 7826 section
+        // 20.39, so at most two ASCII digits and in particular <= 99.
+        let parse_component = |s: &str| -> Result<u8, HeaderParseError> {
+            if s.len() > 2 {
+                return Err(HeaderParseError);
+            }
+            parser_helpers::parse_digits::<u8>(s).map_err(|_| HeaderParseError)
+        };
+
         let mut s = s.split(':');
 
         let hours = s
             .next()
-            .and_then(|s| s.parse::<u8>().ok())
-            .ok_or(HeaderParseError)?;
+            .map(parse_component)
+            .ok_or(HeaderParseError)??;
         let minutes = s
             .next()
-            .and_then(|s| s.parse::<u8>().ok())
-            .ok_or(HeaderParseError)?;
+            .map(parse_component)
+            .ok_or(HeaderParseError)??;
         let seconds = s
             .next()
-            .and_then(|s| s.parse::<u8>().ok())
-            .ok_or(HeaderParseError)?;
+            .map(parse_component)
+            .ok_or(HeaderParseError)??;
+
+        // Minutes and seconds are 0-59 in SMPTE timecodes.
+        if minutes >= 60 || seconds >= 60 {
+            return Err(HeaderParseError);
+        }
 
         let frames = match s.next() {
             Some(frames) => frames,
@@ -393,7 +449,7 @@ impl std::str::FromStr for SmpteTime {
         }
 
         if let Some((frames, subframes)) = frames.split_once('.') {
-            let frames = frames.parse::<u8>().map_err(|_| HeaderParseError)?;
+            let frames = parse_component(frames)?;
             let digits = subframes.len();
 
             let factor = match digits {
@@ -402,7 +458,9 @@ impl std::str::FromStr for SmpteTime {
                 _ => return Err(HeaderParseError),
             };
 
-            let subframes = subframes.parse::<u8>().map_err(|_| HeaderParseError)? * factor;
+            let subframes = parser_helpers::parse_digits::<u8>(subframes)
+                .map_err(|_| HeaderParseError)?
+                * factor;
 
             Ok(SmpteTime {
                 hours,
@@ -411,7 +469,7 @@ impl std::str::FromStr for SmpteTime {
                 frames: Some((frames, Some(subframes))),
             })
         } else {
-            let frames = frames.parse::<u8>().map_err(|_| HeaderParseError)?;
+            let frames = parse_component(frames)?;
 
             Ok(SmpteTime {
                 hours,
@@ -509,23 +567,50 @@ impl std::str::FromStr for UtcTime {
         let (date, time) = s.split_once('T').ok_or(HeaderParseError)?;
         let time = time.strip_suffix('Z').ok_or(HeaderParseError)?;
 
-        let date = date.parse::<u32>().map_err(|_| HeaderParseError)?;
-        let (time, nanoseconds) = if let Some((time, subseconds)) = time.split_once('.') {
-            let time = time.parse::<u32>().map_err(|_| HeaderParseError)?;
-            let digits = subseconds.len();
-            if digits > 9 || digits == 0 {
-                return Err(HeaderParseError);
+        // The date is YYYYMMDD and the time is HHMMSS with an optional
+        // fractional second, per RFC 7826 sections 4.4.3 and 20.39.
+        if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(HeaderParseError);
+        }
+
+        let (time, nanoseconds) = match time.split_once('.') {
+            Some((time, subseconds)) => {
+                let digits = subseconds.len();
+                if digits > 9 || digits == 0 {
+                    return Err(HeaderParseError);
+                }
+                let subseconds = subseconds.parse::<u32>().map_err(|_| HeaderParseError)?;
+
+                let nanoseconds = subseconds * u32::pow(10, 9 - digits as u32);
+
+                (time, Some(nanoseconds))
             }
-            let subseconds = subseconds.parse::<u32>().map_err(|_| HeaderParseError)?;
-
-            let nanoseconds = subseconds * u32::pow(10, 9 - digits as u32);
-
-            (time, Some(nanoseconds))
-        } else {
-            let time = time.parse::<u32>().map_err(|_| HeaderParseError)?;
-
-            (time, None)
+            None => (time, None),
         };
+
+        if time.len() != 6 || !time.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(HeaderParseError);
+        }
+
+        let date = date.parse::<u32>().map_err(|_| HeaderParseError)?;
+        let time = time.parse::<u32>().map_err(|_| HeaderParseError)?;
+
+        // The date has to refer to a real day of a real month and the time
+        // to a real time of day; use the `time` crate for the calendar
+        // calculations (leap years, month lengths, value ranges).
+        time::Date::from_calendar_date(
+            (date / 10000) as i32,
+            time::Month::try_from((date / 100 % 100) as u8).map_err(|_| HeaderParseError)?,
+            (date % 100) as u8,
+        )
+        .map_err(|_| HeaderParseError)?;
+
+        time::Time::from_hms(
+            (time / 10000) as u8,
+            (time / 100 % 100) as u8,
+            (time % 100) as u8,
+        )
+        .map_err(|_| HeaderParseError)?;
 
         Ok(UtcTime {
             date,
@@ -668,6 +753,70 @@ mod tests {
             "smptefoo=1:2:3-4:5:6".parse::<Range>().unwrap(),
             Range::Smpte(_)
         ));
+    }
+
+    #[test]
+    fn test_range_time_validation() {
+        let valid_headers = [
+            "npt=0:59:59.5-1:00:00",
+            "npt=1-99:59:59",
+            "smpte=23:59:59:29.99-01:02:03",
+            "smpte=10:07:00-10:07:33:05.01",
+            "smpte-25=01:02:03:24-01:02:03:24",
+            // For other types the frame rate is unknown, frames cannot be
+            // checked.
+            "smpteext=01:02:03:99-",
+            "clock=20160229T235959.999999999Z-20160301T000000Z",
+            "clock=20000229T000000Z-",
+        ];
+
+        for header in &valid_headers {
+            assert!(header.parse::<Range>().is_ok(), "{} should parse", header);
+        }
+
+        let invalid_headers = [
+            // NPT minutes and seconds are 0-59.
+            "npt=0:60:00-",
+            "npt=0:59:60-",
+            "npt=1-0:0:60",
+            "npt=0:99:99-",
+            // SMPTE minutes and seconds are 0-59.
+            "smpte=01:60:00-",
+            "smpte=01:02:60-",
+            "smpte=-23:00:60",
+            // SMPTE time components are `1*2DIGIT`, so at most two digits
+            // and in particular the hours are <= 99.
+            "smpte=100:00:00-",
+            "smpte=-01:02:03:100",
+            "smpteext=01:02:03:100-",
+            // Leading `+` signs are not digits.
+            "npt=+5",
+            "npt=+0:00:05-",
+            "smpte=+1:02:03-",
+            // The frames field is bounded by the frame rate of the type.
+            "smpte=01:02:03:30-",
+            "smpte=-01:02:03:30",
+            "smpte-30-drop=01:02:03:30-",
+            "smpte-25=01:02:03:25-01:02:03:24",
+            // The UTC date has to be a valid calendar date and the time
+            // valid.
+            "clock=99999999T999999Z",
+            "clock=20151301T120000Z",
+            "clock=20150132T120000Z",
+            "clock=20150100T120000Z",
+            "clock=20150230T120000Z",
+            "clock=19000229T120000Z",
+            "clock=20150101T240000Z",
+            "clock=20150101T126000Z",
+            "clock=20150101T120060Z",
+            "clock=20150101T1200Z",
+            "clock=2015010T120000Z",
+            "clock=2015-01-01T120000Z",
+        ];
+
+        for header in &invalid_headers {
+            assert!(header.parse::<Range>().is_err(), "{} should fail", header);
+        }
     }
 
     #[test]

@@ -9,13 +9,14 @@ keywords = ["rtsp", "network", "protocol", "multimedia", "streaming"]
 categories = ["network-programming", "multimedia"]
 description = "RTSP (RFC 7826) types, parser and serializer"
 readme = "README.md"
-rust-version = "1.65"
+rust-version = "1.88"
 
 [dependencies]
 nom = "7.0"
 cookie-factory = "0.3"
 tinyvec = {version = "1.0", features = ["std", "rustc_1_57"]}
 url = "2.0"
+time = { version = "0.3.55", default-features = false }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [features]

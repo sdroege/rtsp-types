@@ -16,6 +16,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Empty list headers are no longer serialized.
 - `NptTime` serializes fractional seconds using the shortest representation.
 - Model `Speed` as a lower-upper range.
+- Update MSRV to 1.88.
 
 ### Fixed
 - Fix `HeaderName::cmp` for prefix-related header names.
@@ -44,6 +45,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Route `Range` extension specs by exact type name instead of prefix.
 - Reject conflicting duplicate parameters within one `Transport` spec.
 - Reject zero values for `Scale` and `Speed`.
+- Validate the time components in `Range` values.
 
 ## [0.1.3]- 2024-09-06
 ### Added

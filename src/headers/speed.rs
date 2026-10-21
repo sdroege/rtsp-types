@@ -6,46 +6,16 @@ use super::parser_helpers::parse_float;
 use super::*;
 
 /// `Speed` header ([RFC 7826 section 18.50](https://tools.ietf.org/html/rfc7826#section-18.50)).
+///
+/// The header describes a range of speeds, all speeds between
+/// `lower_bound` and `upper_bound` are acceptable.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Speed(f64);
-
-impl std::ops::Deref for Speed {
-    type Target = f64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Speed {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl AsRef<f64> for Speed {
-    fn as_ref(&self) -> &f64 {
-        &self.0
-    }
-}
-
-impl AsMut<f64> for Speed {
-    fn as_mut(&mut self) -> &mut f64 {
-        &mut self.0
-    }
-}
-
-impl From<f64> for Speed {
-    fn from(v: f64) -> Speed {
-        Speed(v)
-    }
-}
-
-impl From<Speed> for f64 {
-    fn from(v: Speed) -> f64 {
-        v.0
-    }
+pub struct Speed {
+    /// The lowest acceptable speed, positive.
+    pub lower_bound: f64,
+    /// The highest acceptable speed, positive.
+    pub upper_bound: f64,
 }
 
 impl super::TypedHeader for Speed {
@@ -57,37 +27,49 @@ impl super::TypedHeader for Speed {
             Some(header) => header,
         };
 
-        let speed = parse_float(header.as_str(), false)
-            .map(Speed)
-            .map_err(|_| HeaderParseError)?;
+        let (lower, upper) = header.as_str().split_once('-').ok_or(HeaderParseError)?;
 
-        Ok(Some(speed))
+        let lower_bound = parse_float(lower.trim(), false).map_err(|_| HeaderParseError)?;
+        let upper_bound = parse_float(upper.trim(), false).map_err(|_| HeaderParseError)?;
+
+        Ok(Some(Speed {
+            lower_bound,
+            upper_bound,
+        }))
     }
 
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
         let headers = headers.as_mut();
 
-        headers.insert(SPEED, self.0.to_string());
+        headers.insert(SPEED, format!("{}-{}", self.lower_bound, self.upper_bound));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_speed() {
-        let headers = [("1", 1.0), ("1.5", 1.5), ("0", 0.0)];
+        let headers = [
+            ("1-2", 1.0, 2.0, "1-2"),
+            ("1.5-2.5", 1.5, 2.5, "1.5-2.5"),
+            ("0.5 - 1.5", 0.5, 1.5, "0.5-1.5"),
+            ("2-2", 2.0, 2.0, "2-2"),
+        ];
 
-        for (header, expected) in &headers {
+        for (header, lower_bound, upper_bound, serialized) in &headers {
             let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
                 .header(crate::headers::SPEED, *header)
                 .empty();
 
             let speed = request
-                .typed_header::<super::Speed>()
+                .typed_header::<Speed>()
                 .unwrap_or_else(|_| panic!("couldn't parse {}", header))
                 .unwrap();
 
-            assert_eq!(*speed, *expected, "{}", header);
+            assert_eq!(speed.lower_bound, *lower_bound, "{}", header);
+            assert_eq!(speed.upper_bound, *upper_bound, "{}", header);
 
             let request2 = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
                 .typed_header(&speed)
@@ -95,24 +77,22 @@ mod tests {
 
             let speed = request2.header(&crate::headers::SPEED).unwrap();
 
-            assert_eq!(speed, *header, "{}", header);
+            assert_eq!(speed, *serialized, "{}", header);
         }
     }
 
     #[test]
     fn test_speed_invalid() {
-        let headers = ["", "inf", "NaN", "1e3", "+1", "-1", "-", "1."];
+        let headers = [
+            "", "-", "1", "1-", "-2", "1-2-3", "1.--2", "inf-NaN", "1e3-2", "-1-2",
+        ];
 
         for header in &headers {
             let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
                 .header(crate::headers::SPEED, *header)
                 .empty();
 
-            assert!(
-                request.typed_header::<super::Speed>().is_err(),
-                "{}",
-                header
-            );
+            assert!(request.typed_header::<Speed>().is_err(), "{}", header);
         }
     }
 }

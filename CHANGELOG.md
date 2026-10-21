@@ -9,6 +9,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ### Added
 - Derive `PartialEq` for list header types.
+- Implement `PartialEq` and `Eq` for `AcceptRanges` and `MediaRange`.
 
 ### Changed
 - `HeaderName` now hashes case-insensitively, consistent with its equality.

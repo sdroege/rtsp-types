@@ -35,6 +35,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Reject NaN, infinity and scientific notation in `Scale` and `Speed` values.
 - Only combine duplicate header values for comma-list headers.
 - Parse media types case-insensitively and support quoted parameters in `Accept`.
+- Unescape quoted `RTP-Info` parameters, quote them back when serializing, and handle edge cases.
 
 ## [0.1.3]- 2024-09-06
 ### Added

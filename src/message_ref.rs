@@ -50,16 +50,16 @@ impl<'a> MessageRef<'a> {
         match cookie_factory::gen_simple(serializer::message(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to write message: {:?}", err),
+            Err(err) => Err(WriteError::Other(format!("{:?}", err))),
         }
     }
 
     pub fn write_len(&self) -> u64 {
-        match cookie_factory::gen(serializer::message(self.clone()), std::io::sink()) {
-            Ok((_w, pos)) => pos,
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to calculate write length: {:?}", err),
+        match self {
+            MessageRef::Data(data) => data.write_len(),
+            _ => cookie_factory::gen(serializer::message(self.clone()), std::io::sink())
+                .map(|(_w, pos)| pos)
+                .expect("request/response serialization to sink cannot fail"),
         }
     }
 }
@@ -212,17 +212,14 @@ impl<'a> RequestRef<'a> {
         match cookie_factory::gen_simple(serializer::request(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to write message: {:?}", err),
+            Err(err) => Err(WriteError::Other(format!("{:?}", err))),
         }
     }
 
     pub fn write_len(&self) -> u64 {
-        match cookie_factory::gen(serializer::request(self.clone()), std::io::sink()) {
-            Ok((_w, pos)) => pos,
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to calculate write length: {:?}", err),
-        }
+        cookie_factory::gen(serializer::request(self.clone()), std::io::sink())
+            .map(|(_w, pos)| pos)
+            .expect("serialization to sink cannot fail")
     }
 
     #[allow(dead_code)]
@@ -289,17 +286,14 @@ impl<'a> ResponseRef<'a> {
         match cookie_factory::gen_simple(serializer::response(self), w) {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to write message: {:?}", err),
+            Err(err) => Err(WriteError::Other(format!("{:?}", err))),
         }
     }
 
     pub fn write_len(&self) -> u64 {
-        match cookie_factory::gen(serializer::response(self.clone()), std::io::sink()) {
-            Ok((_w, pos)) => pos,
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to calculate write length: {:?}", err),
-        }
+        cookie_factory::gen(serializer::response(self.clone()), std::io::sink())
+            .map(|(_w, pos)| pos)
+            .expect("serialization to sink cannot fail")
     }
 
     #[allow(dead_code)]
@@ -360,17 +354,13 @@ impl<'a> DataRef<'a> {
             Ok(_) => Ok(()),
             Err(cookie_factory::GenError::IoError(io)) => Err(WriteError::IoError(io)),
             Err(cookie_factory::GenError::CustomError(_)) => Err(WriteError::DataTooLarge(len)),
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to write message: {:?}", err),
+            Err(err) => Err(WriteError::Other(format!("{:?}", err))),
         }
     }
 
     pub fn write_len(&self) -> u64 {
-        match cookie_factory::gen(serializer::data(self.clone()), std::io::sink()) {
-            Ok((_w, pos)) => pos,
-            // This case can't really happen with our serializer!
-            Err(err) => panic!("Failed to calculate write length: {:?}", err),
-        }
+        // '$' + channel + 16-bit length
+        4 + self.len() as u64
     }
 
     #[allow(dead_code)]
@@ -458,6 +448,16 @@ mod tests {
             other => panic!("Expected InvalidContentLength, got: {:?}", other),
         }
         assert!(v.is_empty());
+    }
+
+    #[test]
+    fn test_write_len_oversized_data() {
+        // write() fails for data larger than the 16-bit length field can
+        // hold, but the length itself can still be calculated.
+        let body = vec![0; 65536];
+        let data = DataRef::from_slice(0, &body);
+
+        assert_eq!(data.write_len(), 4 + body.len() as u64);
     }
 
     #[test]

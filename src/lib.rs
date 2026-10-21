@@ -521,6 +521,8 @@ pub enum WriteError {
         /// The actual body length
         body_len: usize,
     },
+    /// Unexpected error while serializing the message
+    Other(String),
 }
 
 impl std::error::Error for WriteError {
@@ -529,6 +531,7 @@ impl std::error::Error for WriteError {
             WriteError::IoError(ref err) => Some(err),
             WriteError::DataTooLarge(_) => None,
             WriteError::InvalidContentLength { .. } => None,
+            WriteError::Other(_) => None,
         }
     }
 }
@@ -553,6 +556,7 @@ impl std::fmt::Display for WriteError {
                     "`Content-Length` ({len}) does not match {body_len} byte body"
                 ),
             },
+            WriteError::Other(ref error) => write!(f, "Serialization error: {error}"),
         }
     }
 }

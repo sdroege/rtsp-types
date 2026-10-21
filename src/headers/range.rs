@@ -35,11 +35,20 @@ impl std::str::FromStr for Range {
     type Err = HeaderParseError;
 
     fn from_str(s: &str) -> Result<Self, HeaderParseError> {
-        if s.starts_with("npt") {
+        // Route by the exact range type name, not just a prefix: per RFC 7826
+        // section 20.39 any other token (even one starting with a known range
+        // type, like "nptx") is a range extension.
+        let name = match s.split_once('=') {
+            Some((name, _)) => name,
+            None => s,
+        };
+
+        if name == "npt" {
             Ok(Range::Npt(s.parse()?))
-        } else if s.starts_with("clock") {
+        } else if name == "clock" {
             Ok(Range::Utc(s.parse()?))
-        } else if s.starts_with("smpte") {
+        } else if name.starts_with("smpte") {
+            // "smpte" followed by any token is a valid SMPTE type extension.
             Ok(Range::Smpte(s.parse()?))
         } else {
             Ok(Range::Other(s.into()))
@@ -617,6 +626,48 @@ mod tests {
 
             assert_eq!(range, serialized.unwrap_or(header), "{header}");
         }
+    }
+
+    #[test]
+    fn test_range_extension_routing() {
+        // Extension range specs must not be misrouted just because their
+        // name starts with a known range type.
+        assert_eq!(
+            "nptx=1-2".parse::<Range>().unwrap(),
+            Range::Other("nptx=1-2".into())
+        );
+        assert_eq!(
+            "clockx=1".parse::<Range>().unwrap(),
+            Range::Other("clockx=1".into())
+        );
+        assert_eq!(
+            "asef".parse::<Range>().unwrap(),
+            Range::Other("asef".into())
+        );
+
+        // Known range types still route to their parser.
+        assert_eq!(
+            "npt=1-2".parse::<Range>().unwrap(),
+            Range::Npt(NptRange::FromTo(
+                NptTime::Seconds(1, None),
+                NptTime::Seconds(2, None)
+            ))
+        );
+        assert_eq!("npt".parse::<Range>().unwrap(), Range::Npt(NptRange::Empty));
+        assert_eq!(
+            "clock".parse::<Range>().unwrap(),
+            Range::Utc(UtcRange::Empty)
+        );
+        assert_eq!(
+            "smpte".parse::<Range>().unwrap(),
+            Range::Smpte(SmpteRange::Empty(SmpteType::Smpte))
+        );
+        // "smpte" followed by a token is a valid SMPTE type extension per
+        // RFC 7826 section 20.39.
+        assert!(matches!(
+            "smptefoo=1:2:3-4:5:6".parse::<Range>().unwrap(),
+            Range::Smpte(_)
+        ));
     }
 
     #[test]

@@ -144,6 +144,9 @@ pub mod v2 {
         /// Stream URI.
         pub uri: url::Url,
         /// SSRC information.
+        ///
+        /// Entries without any SSRC information cannot be represented in the
+        /// serialized form and are dropped when serializing.
         pub ssrc_infos: Vec<SsrcInfo>,
     }
 
@@ -164,17 +167,34 @@ pub mod v2 {
     pub(super) mod parser {
         use super::*;
 
-        use super::parser_helpers::{cond_parser, quoted_string, token, trim};
+        use super::parser_helpers::{cond_parser, parse_quoted_string, quoted_string, token, trim};
         use crate::nom_extensions::separated_list1_fold;
         use nom::branch::alt;
-        use nom::bytes::complete::{tag, take, take_while};
+        use nom::bytes::complete::{tag, take};
         use nom::combinator::{all_consuming, map, map_res};
         use nom::multi::{many1, separated_list1};
         use nom::sequence::tuple;
         use nom::{Err, IResult};
         use std::str;
 
-        fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
+        fn param_value(input: &[u8]) -> IResult<&[u8], String> {
+            let (input, value) = alt((quoted_string, token))(input)?;
+            let value = str::from_utf8(value).map_err(|_| {
+                Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
+            })?;
+
+            if value.starts_with('"') {
+                let value = parse_quoted_string(value).map_err(|_| {
+                    Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
+                })?;
+
+                Ok((input, value))
+            } else {
+                Ok((input, String::from(value)))
+            }
+        }
+
+        fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<String>)> {
             if input.is_empty() {
                 return Err(Err::Error(nom::error::Error::new(
                     input,
@@ -184,10 +204,7 @@ pub mod v2 {
 
             tuple((
                 trim(map_res(token, str::from_utf8)),
-                cond_parser(
-                    tag(b"="),
-                    trim(map_res(alt((quoted_string, token)), str::from_utf8)),
-                ),
+                cond_parser(tag(b"="), trim(param_value)),
             ))(input)
         }
 
@@ -206,7 +223,7 @@ pub mod v2 {
                             param,
                             BTreeMap::new(),
                             |mut acc, param| {
-                                acc.insert(String::from(param.0), param.1.map(String::from));
+                                acc.insert(String::from(param.0), param.1);
 
                                 acc
                             },
@@ -238,20 +255,28 @@ pub mod v2 {
             )(input)
         }
 
+        fn parse_url(input: &[u8]) -> IResult<&[u8], url::Url> {
+            fn error(input: &[u8]) -> Err<nom::error::Error<&[u8]>> {
+                Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
+            }
+
+            let (input, quoted) = trim(quoted_string)(input)?;
+            let quoted = str::from_utf8(quoted).map_err(|_| error(input))?;
+            let quoted = parse_quoted_string(quoted).map_err(|_| error(input))?;
+            let uri = url::Url::parse(&quoted).map_err(|_| error(input))?;
+
+            Ok((input, uri))
+        }
+
         fn rtp_info(input: &[u8]) -> IResult<&[u8], RtpInfo> {
             map(
                 tuple((
                     trim(tag(b"url")),
                     trim(tag(b"=")),
-                    trim(tag(b"\"")),
-                    trim(map_res(
-                        map_res(take_while(|b| b != b'"'), str::from_utf8),
-                        url::Url::parse,
-                    )),
-                    trim(tag(b"\"")),
+                    parse_url,
                     many1(trim(ssrc_info)),
                 )),
-                |(_, _, _, uri, _, ssrc_infos)| RtpInfo { uri, ssrc_infos },
+                |(_, _, uri, ssrc_infos)| RtpInfo { uri, ssrc_infos },
             )(input)
         }
 
@@ -391,7 +416,15 @@ impl super::TypedHeader for RtpInfos {
                                 infos.push(';');
                             }
                             if let Some(value) = value {
-                                write!(&mut infos, "{name}={value}").unwrap();
+                                infos.push_str(name);
+                                infos.push('=');
+                                if value.is_empty()
+                                    || value.bytes().any(|b| !parser_helpers::is_token_char(b))
+                                {
+                                    parser_helpers::write_quoted_string(&mut infos, value);
+                                } else {
+                                    infos.push_str(value);
+                                }
                             } else {
                                 write!(&mut infos, "{name}").unwrap();
                             }
@@ -400,6 +433,13 @@ impl super::TypedHeader for RtpInfos {
                     }
                 }
             }
+        }
+
+        if infos.is_empty() {
+            // An empty list cannot be represented. Remove any existing
+            // header instead of writing an empty header value.
+            headers.remove(&RTP_INFO);
+            return;
         }
 
         headers.insert(RTP_INFO, infos);
@@ -629,5 +669,95 @@ mod tests {
                 }
             ])
         );
+    }
+
+    #[test]
+    fn test_quoted_params() {
+        let header =
+            "url=\"rtsp://example.com/foo/audio\" ssrc=0A13C760:x=\"a;b=c\";y=\"p\\\"q\";plain";
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
+
+        let mut others = BTreeMap::new();
+        others.insert("x".to_string(), Some("a;b=c".to_string()));
+        others.insert("y".to_string(), Some("p\"q".to_string()));
+        others.insert("plain".to_string(), None);
+
+        assert_eq!(
+            infos,
+            RtpInfos::V2(vec![v2::RtpInfo {
+                uri: url::Url::parse("rtsp://example.com/foo/audio").unwrap(),
+                ssrc_infos: vec![v2::SsrcInfo {
+                    ssrc: 0x0A13C760,
+                    seq: None,
+                    rtptime: None,
+                    others,
+                }],
+            }])
+        );
+
+        // The serialized form has a different parameter order, so check that
+        // it parses back to the same value.
+        let response2 = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .typed_header(&infos)
+            .empty();
+        let header2 = response2
+            .header(&crate::headers::RTP_INFO)
+            .unwrap()
+            .to_string();
+        let response3 = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header2.as_str())
+            .empty();
+
+        assert_eq!(
+            response3
+                .typed_header::<super::RtpInfos>()
+                .unwrap()
+                .unwrap(),
+            infos
+        );
+    }
+
+    #[test]
+    fn test_escaped_quote_in_url() {
+        let header = "url=\"rtsp://example.com/foo\\\"bar\" ssrc=0A13C760:seq=45102";
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::RTP_INFO, header)
+            .empty();
+
+        let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
+
+        assert_eq!(
+            infos,
+            RtpInfos::V2(vec![v2::RtpInfo {
+                uri: url::Url::parse("rtsp://example.com/foo\"bar").unwrap(),
+                ssrc_infos: vec![v2::SsrcInfo {
+                    ssrc: 0x0A13C760,
+                    seq: Some(45102),
+                    rtptime: None,
+                    others: BTreeMap::new(),
+                }],
+            }])
+        );
+    }
+
+    #[test]
+    fn test_empty_ssrc_infos_dropped() {
+        let infos = RtpInfos::V2(vec![v2::RtpInfo {
+            uri: url::Url::parse("rtsp://example.com/foo/audio").unwrap(),
+            ssrc_infos: Vec::new(),
+        }]);
+
+        let mut headers = Headers::new();
+        headers.insert(
+            crate::headers::RTP_INFO,
+            "url=\"rtsp://example.com/x\" ssrc=00000000",
+        );
+        infos.insert_into(&mut headers);
+
+        assert!(headers.get(&crate::headers::RTP_INFO).is_none());
     }
 }

@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use super::parser_helpers;
 use super::*;
 
 use std::fmt;
@@ -65,17 +66,20 @@ impl fmt::Display for MediaType {
 impl std::str::FromStr for MediaType {
     type Err = HeaderParseError;
 
+    /// Media types are case-insensitive, unknown ones are kept as-is.
     fn from_str(s: &str) -> Result<Self, HeaderParseError> {
-        match s {
-            "text" => Ok(MediaType::Text),
-            "image" => Ok(MediaType::Image),
-            "audio" => Ok(MediaType::Audio),
-            "video" => Ok(MediaType::Video),
-            "application" => Ok(MediaType::Application),
-            "message" => Ok(MediaType::Message),
-            "multipart" => Ok(MediaType::Multipart),
-            _ => Ok(MediaType::Extension(String::from(s))),
-        }
+        let media_type = match s.to_ascii_lowercase().as_str() {
+            "text" => MediaType::Text,
+            "image" => MediaType::Image,
+            "audio" => MediaType::Audio,
+            "video" => MediaType::Video,
+            "application" => MediaType::Application,
+            "message" => MediaType::Message,
+            "multipart" => MediaType::Multipart,
+            _ => return Ok(MediaType::Extension(String::from(s))),
+        };
+
+        Ok(media_type)
     }
 }
 
@@ -151,44 +155,82 @@ impl super::TypedHeader for Accept {
         };
 
         let mut media_types = Vec::new();
-        for media_type_range in header.as_str().split(',') {
-            let media_type_range = media_type_range.trim();
+        for media_type_range in parser_helpers::split_unquoted(header.as_str(), b',') {
+            let mut params_iter =
+                parser_helpers::split_unquoted(media_type_range, b';').into_iter();
+            let media_type_range = params_iter.next().ok_or(HeaderParseError)?.trim();
 
             if media_type_range.is_empty() {
                 continue;
             }
 
-            let mut iter = media_type_range.split(';');
-            let media_type = iter.next().ok_or(HeaderParseError)?.trim();
-            let (media_type, media_subtype) = media_type.split_once('/').ok_or(HeaderParseError)?;
+            let (media_type, media_subtype) =
+                media_type_range.split_once('/').ok_or(HeaderParseError)?;
+            let media_type = media_type.trim();
+            let media_subtype = media_subtype.trim();
 
             let media_type = if media_type == "*" {
                 None
+            } else if media_type.is_empty() {
+                return Err(HeaderParseError);
             } else {
-                Some(media_type)
+                Some(
+                    media_type
+                        .parse::<MediaType>()
+                        .map_err(|_| HeaderParseError)?,
+                )
             };
             let media_subtype = if media_subtype == "*" {
                 None
+            } else if media_subtype.is_empty() {
+                return Err(HeaderParseError);
             } else {
-                Some(media_subtype)
+                Some(String::from(media_subtype))
             };
 
             let mut params = Vec::new();
-            for param in iter {
+            for param in params_iter {
                 let param = param.trim();
-                if let Some((param, value)) = param.split_once('=') {
-                    params.push((String::from(param), Some(String::from(value))));
-                } else {
-                    params.push((String::from(param), None));
+                if param.is_empty() {
+                    return Err(HeaderParseError);
                 }
+
+                let (param_name, param_value) = match param.split_once('=') {
+                    Some((param_name, param_value)) => (param_name, Some(param_value)),
+                    None => (param, None),
+                };
+
+                let param_name = param_name.trim();
+                if param_name.is_empty()
+                    || param_name
+                        .bytes()
+                        .any(|b| !parser_helpers::is_token_char(b))
+                {
+                    return Err(HeaderParseError);
+                }
+
+                let param_value = match param_value {
+                    None => None,
+                    Some(value) if value.trim().starts_with('"') => {
+                        Some(parser_helpers::parse_quoted_string(value.trim())?)
+                    }
+                    Some(value) => {
+                        let value = value.trim();
+                        if value.is_empty()
+                            || value.bytes().any(|b| !parser_helpers::is_token_char(b))
+                        {
+                            return Err(HeaderParseError);
+                        }
+                        Some(String::from(value))
+                    }
+                };
+
+                params.push((String::from(param_name), param_value));
             }
 
             media_types.push(MediaTypeRange {
-                type_: media_type
-                    .map(|s| s.parse())
-                    .transpose()
-                    .map_err(|_| HeaderParseError)?,
-                subtype: media_subtype.map(String::from),
+                type_: media_type,
+                subtype: media_subtype,
                 params,
             });
         }
@@ -197,8 +239,6 @@ impl super::TypedHeader for Accept {
     }
 
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
-        use std::fmt::Write;
-
         let headers = headers.as_mut();
 
         if self.0.is_empty() {
@@ -208,78 +248,58 @@ impl super::TypedHeader for Accept {
             return;
         }
 
-        let mut media_types = String::new();
-        for media_type in &self.0 {
-            if !media_types.is_empty() {
-                media_types.push_str(", ");
-            }
-
-            if let Some(ref t) = media_type.type_ {
-                write!(&mut media_types, "{t}").unwrap();
-            } else {
-                media_types.push('*');
-            }
-            media_types.push('/');
-            if let Some(ref t) = media_type.subtype {
-                media_types.push_str(t);
-            } else {
-                media_types.push('*');
-            }
-
-            for param in &media_type.params {
-                media_types.push(';');
-                if let Some(ref value) = param.1 {
-                    write!(&mut media_types, "{}={}", param.0, value).unwrap();
-                } else {
-                    media_types.push_str(&param.0);
-                }
-            }
-        }
-
-        headers.insert(ACCEPT, media_types);
+        headers.insert(ACCEPT, format_media_type_ranges(&self.0));
     }
 }
 
 impl super::TypedAppendableHeader for Accept {
     fn append_to(&self, mut headers: impl AsMut<Headers>) {
-        use std::fmt::Write;
-
         let headers = headers.as_mut();
 
         if self.0.is_empty() {
             return;
         }
 
-        let mut media_types = String::new();
-        for media_type in &self.0 {
-            if !media_types.is_empty() {
-                media_types.push_str(", ");
-            }
+        headers.append(ACCEPT, format_media_type_ranges(&self.0));
+    }
+}
 
-            if let Some(ref t) = media_type.type_ {
-                write!(&mut media_types, "{t}").unwrap();
-            } else {
-                media_types.push('*');
-            }
-            media_types.push('/');
-            if let Some(ref t) = media_type.subtype {
-                media_types.push_str(t);
-            } else {
-                media_types.push('*');
-            }
+fn format_media_type_ranges(media_types: &[MediaTypeRange]) -> String {
+    use std::fmt::Write;
 
-            for param in &media_type.params {
-                media_types.push(';');
-                if let Some(ref value) = param.1 {
-                    write!(&mut media_types, "{}={}", param.0, value).unwrap();
+    let mut result = String::new();
+    for media_type in media_types {
+        if !result.is_empty() {
+            result.push_str(", ");
+        }
+
+        if let Some(ref t) = media_type.type_ {
+            write!(&mut result, "{t}").unwrap();
+        } else {
+            result.push('*');
+        }
+        result.push('/');
+        if let Some(ref t) = media_type.subtype {
+            result.push_str(t);
+        } else {
+            result.push('*');
+        }
+
+        for (name, value) in &media_type.params {
+            result.push(';');
+            result.push_str(name);
+            if let Some(ref value) = value {
+                result.push('=');
+                if value.is_empty() || value.bytes().any(|b| !parser_helpers::is_token_char(b)) {
+                    parser_helpers::write_quoted_string(&mut result, value);
                 } else {
-                    media_types.push_str(&param.0);
+                    result.push_str(value);
                 }
             }
         }
-
-        headers.append(ACCEPT, media_types);
     }
+
+    result
 }
 
 #[cfg(test)]
@@ -334,5 +354,130 @@ mod tests {
             test_headers.get(&ACCEPT).expect("should be Some").as_str(),
             "video/*"
         );
+    }
+
+    fn parse_accept(header: &str) -> Accept {
+        let mut headers = Headers::new();
+        headers.insert(ACCEPT, header);
+        Accept::from_headers(&headers).unwrap().unwrap()
+    }
+
+    fn range(
+        type_: MediaType,
+        subtype: Option<&str>,
+        params: &[(&str, Option<&str>)],
+    ) -> MediaTypeRange {
+        MediaTypeRange {
+            type_: Some(type_),
+            subtype: subtype.map(String::from),
+            params: params
+                .iter()
+                .map(|(name, value)| (String::from(*name), value.map(String::from)))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn test_media_type_case_insensitive() {
+        assert_eq!("AUDIO".parse::<MediaType>().unwrap(), MediaType::Audio);
+        assert_eq!(
+            "Multipart".parse::<MediaType>().unwrap(),
+            MediaType::Multipart
+        );
+        assert_eq!(
+            "X-Custom".parse::<MediaType>().unwrap(),
+            MediaType::Extension("X-Custom".into())
+        );
+    }
+
+    #[test]
+    fn test_accept_parsing() {
+        let cases = [
+            (
+                "AUDIO/*;q=0.5, Video/Mpeg4",
+                vec![
+                    range(MediaType::Audio, None, &[("q", Some("0.5"))]),
+                    range(MediaType::Video, Some("Mpeg4"), &[]),
+                ],
+                "audio/*;q=0.5, video/Mpeg4",
+            ),
+            (
+                "*/*",
+                vec![MediaTypeRange {
+                    type_: None,
+                    subtype: None,
+                    params: Vec::new(),
+                }],
+                "*/*",
+            ),
+            (
+                "audio/x-pn-realaudio;Params=\"a;b=c\";flag",
+                vec![range(
+                    MediaType::Audio,
+                    Some("x-pn-realaudio"),
+                    &[("Params", Some("a;b=c")), ("flag", None)],
+                )],
+                "audio/x-pn-realaudio;Params=\"a;b=c\";flag",
+            ),
+            (
+                "audio/x;foo=\"a,b\",video/*",
+                vec![
+                    range(MediaType::Audio, Some("x"), &[("foo", Some("a,b"))]),
+                    range(MediaType::Video, None, &[]),
+                ],
+                "audio/x;foo=\"a,b\", video/*",
+            ),
+            (
+                "audio/x;foo=\"a\\\"b\"",
+                vec![range(MediaType::Audio, Some("x"), &[("foo", Some("a\"b"))])],
+                "audio/x;foo=\"a\\\"b\"",
+            ),
+        ];
+
+        for (header, expected, serialized) in &cases {
+            let accept = parse_accept(header);
+
+            assert_eq!(&*accept, expected, "{}", header);
+
+            let mut out_headers = Headers::new();
+            accept.insert_into(&mut out_headers);
+
+            assert_eq!(
+                out_headers.get(&ACCEPT).expect("should be Some").as_str(),
+                *serialized,
+                "{}",
+                header
+            );
+
+            assert_eq!(&*parse_accept(serialized), expected, "{}", serialized);
+        }
+    }
+
+    #[test]
+    fn test_accept_invalid() {
+        let headers = [
+            "audio",
+            "/mpeg",
+            "audio/",
+            "audio/*;foo=\"unterminated",
+            "audio/*;foo=a b",
+            "audio/*;foo=",
+            "audio/*;=bar",
+            "audio/*;",
+        ];
+
+        for header in &headers {
+            assert!(
+                parse_accept_err(header).is_err(),
+                "invalid header accepted: {}",
+                header
+            );
+        }
+    }
+
+    fn parse_accept_err(header: &str) -> Result<Option<Accept>, HeaderParseError> {
+        let mut headers = Headers::new();
+        headers.insert(ACCEPT, header);
+        Accept::from_headers(&headers)
     }
 }

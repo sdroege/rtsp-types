@@ -49,9 +49,9 @@ impl<'a> From<&'a [String]> for Unsupported {
     }
 }
 
-impl<'a> From<&'a [&'a &str]> for Unsupported {
-    fn from(v: &'a [&'a &str]) -> Self {
-        Unsupported(v.iter().map(|s| String::from(**s)).collect())
+impl<'a> From<&'a [&'a str]> for Unsupported {
+    fn from(v: &'a [&'a str]) -> Self {
+        Unsupported(v.iter().map(|s| String::from(*s)).collect())
     }
 }
 

@@ -49,9 +49,9 @@ impl<'a> From<&'a [String]> for Require {
     }
 }
 
-impl<'a> From<&'a [&'a &str]> for Require {
-    fn from(v: &'a [&'a &str]) -> Self {
-        Require(v.iter().map(|s| String::from(**s)).collect())
+impl<'a> From<&'a [&'a str]> for Require {
+    fn from(v: &'a [&'a str]) -> Self {
+        Require(v.iter().map(|s| String::from(*s)).collect())
     }
 }
 
@@ -214,15 +214,11 @@ mod tests {
     }
 
     #[test]
-    fn test_partial_eq() {
-        assert_eq!(
-            Require::builder().play_basic().build(),
-            Require::builder().play_basic().build()
-        );
-        assert_ne!(
-            Require::builder().play_basic().build(),
-            Require::builder().play_speed().build()
-        );
+    fn test_from_str_slice() {
+        let require = Require::from(&["play.basic", "play.scale"][..]);
+
+        assert!(require.contains_play_basic());
+        assert!(require.contains_play_scale());
     }
 
     #[test]

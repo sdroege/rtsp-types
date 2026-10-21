@@ -10,7 +10,18 @@ use std::fmt;
 
 use crate::message_ref::HeaderRef;
 
+use super::constants::{
+    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, ACCEPT_RANGES, ALLOW, AUTHENTICATION_INFO,
+    CACHE_CONTROL, CONNECTION, CONTENT_ENCODING, CONTENT_LANGUAGE, MEDIA_PROPERTIES, MEDIA_RANGE,
+    PROXY_AUTHENTICATE, PROXY_AUTHENTICATION_INFO, PROXY_REQUIRE, PROXY_SUPPORTED, PUBLIC, REQUIRE,
+    RTP_INFO, SUPPORTED, TRANSPORT, UNSUPPORTED, VIA, WWW_AUTHENTICATE,
+};
+
 /// A collection of RTSP headers together with their values.
+///
+/// When a message is parsed, duplicate header fields are combined into a single one: for
+/// headers whose value is a comma-separated list the values are joined with ", ", for all
+/// other headers the value of the last occurrence is kept.
 ///
 /// [`Request`](../struct.Request.html) and [`Response`](../struct.Response.html) implement
 /// `AsRef<Headers>` and `AsMut<Headers>, which allows functions working with headers to be
@@ -18,6 +29,45 @@ use crate::message_ref::HeaderRef;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Headers(pub(crate) BTreeMap<HeaderName, HeaderValue>);
+
+/// Checks if the header's value is a comma-separated list of values as defined in
+/// [RFC 7826 section 5.2](https://tools.ietf.org/html/rfc7826#section-5.2). Duplicate
+/// occurrences of such headers can be combined into a single one by joining their values
+/// with ", ". All other headers must not appear more than once; for those the last value
+/// wins.
+///
+/// The set matches the headers whose grammar in RFC 7826 section 18 is defined as
+/// `value *(COMMA value)`. `If-Match` and `If-None-Match` are excluded because their
+/// value may also be a single `*`, which would change meaning when combined.
+fn is_list_header(name: &HeaderName) -> bool {
+    [
+        &ACCEPT,
+        &ACCEPT_ENCODING,
+        &ACCEPT_LANGUAGE,
+        &ACCEPT_RANGES,
+        &ALLOW,
+        &AUTHENTICATION_INFO,
+        &CACHE_CONTROL,
+        &CONNECTION,
+        &CONTENT_ENCODING,
+        &CONTENT_LANGUAGE,
+        &MEDIA_PROPERTIES,
+        &MEDIA_RANGE,
+        &PROXY_AUTHENTICATE,
+        &PROXY_AUTHENTICATION_INFO,
+        &PROXY_REQUIRE,
+        &PROXY_SUPPORTED,
+        &PUBLIC,
+        &REQUIRE,
+        &RTP_INFO,
+        &SUPPORTED,
+        &TRANSPORT,
+        &UNSUPPORTED,
+        &VIA,
+        &WWW_AUTHENTICATE,
+    ]
+    .contains(&name)
+}
 
 impl Headers {
     pub(crate) fn new() -> Headers {
@@ -58,7 +108,11 @@ impl Headers {
             let name = HeaderName::try_from(header.name).map_err(|_| crate::ParseError::Error)?;
             let value = String::from_utf8(value).expect("Non-UTF8 characters");
 
-            owned_headers.append(name, HeaderValue::from(value));
+            if is_list_header(&name) {
+                owned_headers.append(name, HeaderValue::from(value));
+            } else {
+                owned_headers.insert(name, HeaderValue::from(value));
+            }
         }
 
         Ok(owned_headers)
@@ -553,5 +607,88 @@ mod tests {
         assert_eq!(map.len(), 2);
         assert_eq!(map.get(&name("SESSION")).unwrap(), &"a");
         assert_eq!(map.get(&name("sessionx")).unwrap(), &"b");
+    }
+
+    #[test]
+    fn test_duplicate_header_folding() {
+        let list_headers = [
+            "Accept",
+            "Accept-Encoding",
+            "Accept-Language",
+            "Accept-Ranges",
+            "Allow",
+            "Authentication-Info",
+            "Cache-Control",
+            "Connection",
+            "Content-Encoding",
+            "Content-Language",
+            "Media-Properties",
+            "Media-Range",
+            "Proxy-Authenticate",
+            "Proxy-Authentication-Info",
+            "Proxy-Require",
+            "Proxy-Supported",
+            "Public",
+            "Require",
+            "RTP-Info",
+            "Supported",
+            "Transport",
+            "Unsupported",
+            "Via",
+            "WWW-Authenticate",
+        ];
+        let single_headers = [
+            "Server",
+            "CSeq",
+            "Session",
+            "Range",
+            "If-Match",
+            "If-None-Match",
+            "X-Custom",
+        ];
+
+        for header in list_headers {
+            let headers = Headers::from_headers_ref(vec![
+                HeaderRef {
+                    name: header,
+                    value: "a",
+                },
+                HeaderRef {
+                    name: header,
+                    value: "b",
+                },
+            ])
+            .unwrap();
+
+            assert_eq!(headers.iter().count(), 1, "{}", header);
+            assert_eq!(
+                headers.get(&name(header)).unwrap().as_str(),
+                "a, b",
+                "{}",
+                header
+            );
+        }
+
+        for header in single_headers {
+            let headers = Headers::from_headers_ref(vec![
+                HeaderRef {
+                    name: header,
+                    value: "first",
+                },
+                HeaderRef {
+                    name: header,
+                    value: "second",
+                },
+            ])
+            .unwrap();
+
+            assert_eq!(headers.iter().count(), 1, "{}", header);
+            assert_eq!(
+                headers.get(&name(header)).unwrap().as_str(),
+                "second",
+                "{}",
+                header
+            );
+        }
     }
 }

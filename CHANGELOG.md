@@ -33,6 +33,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Don't panic on a lone `"` as a `mode` value in `Transport` headers.
 - Parse and serialize `Content-Type` parameters quote-aware.
 - Reject NaN, infinity and scientific notation in `Scale` and `Speed` values.
+- Only combine duplicate header values for comma-list headers.
 
 ## [0.1.3]- 2024-09-06
 ### Added

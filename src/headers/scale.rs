@@ -6,6 +6,8 @@ use super::parser_helpers::parse_float;
 use super::*;
 
 /// `Scale` header ([RFC 7826 section 18.46](https://tools.ietf.org/html/rfc7826#section-18.46)).
+///
+/// A scale of 0 is equivalent to pause and not allowed.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Scale(f64);
@@ -57,11 +59,14 @@ impl super::TypedHeader for Scale {
             Some(header) => header,
         };
 
-        let scale = parse_float(header.as_str(), true)
-            .map(Scale)
-            .map_err(|_| HeaderParseError)?;
+        let scale = parse_float(header.as_str(), true).map_err(|_| HeaderParseError)?;
 
-        Ok(Some(scale))
+        // A scale of 0 is equivalent to pause and not allowed.
+        if scale == 0.0 {
+            return Err(HeaderParseError);
+        }
+
+        Ok(Some(Scale(scale)))
     }
 
     fn insert_into(&self, mut headers: impl AsMut<Headers>) {
@@ -75,13 +80,7 @@ impl super::TypedHeader for Scale {
 mod tests {
     #[test]
     fn test_scale() {
-        let headers = [
-            ("1", 1.0),
-            ("0.5", 0.5),
-            ("-2", -2.0),
-            ("1.25", 1.25),
-            ("0", 0.0),
-        ];
+        let headers = [("1", 1.0), ("0.5", 0.5), ("-2", -2.0), ("1.25", 1.25)];
 
         for (header, expected) in &headers {
             let request = crate::Request::builder(crate::Method::Play, crate::Version::V2_0)
@@ -108,7 +107,8 @@ mod tests {
     #[test]
     fn test_scale_invalid() {
         let headers = [
-            "", "inf", "-inf", "NaN", "1e5", "1E-3", "+1", "1.", ".5", "1.2.3", "--1", "-",
+            "", "inf", "-inf", "NaN", "1e5", "1E-3", "+1", "1.", ".5", "1.2.3", "--1", "-", "0",
+            "0.0", "-0.0", "0.000",
         ];
 
         for header in &headers {

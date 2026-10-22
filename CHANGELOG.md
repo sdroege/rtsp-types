@@ -19,6 +19,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Model `Speed` as a lower-upper range.
 - Update MSRV to 1.88.
 - `HeaderParseError` messages now include the header name and value.
+- `ParseError` now reports the position and expected input of syntax errors.
 
 ### Fixed
 - Fix `HeaderName::cmp` for prefix-related header names.

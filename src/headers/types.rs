@@ -24,7 +24,7 @@ use super::constants::{
 /// other headers the value of the last occurrence is kept.
 ///
 /// [`Request`](../struct.Request.html) and [`Response`](../struct.Response.html) implement
-/// `AsRef<Headers>` and `AsMut<Headers>, which allows functions working with headers to be
+/// `AsRef<Headers>` and `AsMut<Headers>`, which allows functions working with headers to be
 /// implemented generically over those traits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

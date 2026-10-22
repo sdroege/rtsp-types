@@ -74,6 +74,9 @@ impl AllowBuilder {
 }
 
 impl super::TypedHeader for Allow {
+    fn header_name() -> Option<HeaderName> {
+        Some(ALLOW.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 

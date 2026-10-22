@@ -49,6 +49,9 @@ impl From<CSeq> for u32 {
 }
 
 impl super::TypedHeader for CSeq {
+    fn header_name() -> Option<HeaderName> {
+        Some(CSEQ.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -59,7 +62,7 @@ impl super::TypedHeader for CSeq {
 
         let cseq = parse_digits::<u32>(header.as_str())
             .map(CSeq)
-            .map_err(|_| HeaderParseError)?;
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(cseq))
     }

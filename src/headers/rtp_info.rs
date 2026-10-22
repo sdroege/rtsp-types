@@ -107,18 +107,18 @@ pub mod v1 {
                                 .unwrap_or(uri);
                             url::Url::parse(uri).ok()
                         })
-                        .ok_or(HeaderParseError)?;
+                        .ok_or_else(HeaderParseError::new)?;
                     let seq = info
                         .seq
                         .map(|s| s.parse::<u16>())
                         .transpose()
-                        .map_err(|_| HeaderParseError)?;
+                        .map_err(|_| HeaderParseError::new())?;
 
                     let rtptime = info
                         .rtptime
                         .map(|s| s.parse::<u32>())
                         .transpose()
-                        .map_err(|_| HeaderParseError)?;
+                        .map_err(|_| HeaderParseError::new())?;
 
                     Ok(RtpInfo { uri, seq, rtptime })
                 },
@@ -234,13 +234,17 @@ pub mod v2 {
                     let mut params = params.unwrap_or_default();
 
                     let seq = if let Some((_, Some(seq))) = params.remove_entry("seq") {
-                        Some(seq.parse::<u16>().map_err(|_| HeaderParseError)?)
+                        Some(seq.parse::<u16>().map_err(|_| HeaderParseError::new())?)
                     } else {
                         None
                     };
 
                     let rtptime = if let Some((_, Some(rtptime))) = params.remove_entry("rtptime") {
-                        Some(rtptime.parse::<u32>().map_err(|_| HeaderParseError)?)
+                        Some(
+                            rtptime
+                                .parse::<u32>()
+                                .map_err(|_| HeaderParseError::new())?,
+                        )
                     } else {
                         None
                     };
@@ -339,6 +343,9 @@ mod parser {
 }
 
 impl super::TypedHeader for RtpInfos {
+    fn header_name() -> Option<HeaderName> {
+        Some(RTP_INFO.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -348,7 +355,7 @@ impl super::TypedHeader for RtpInfos {
         };
 
         let (_rem, rtp_info) =
-            parser::rtp_infos(header.as_str().as_bytes()).map_err(|_| HeaderParseError)?;
+            parser::rtp_infos(header.as_str().as_bytes()).map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(rtp_info))
     }

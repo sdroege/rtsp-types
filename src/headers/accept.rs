@@ -146,6 +146,9 @@ impl AcceptBuilder {
 }
 
 impl super::TypedHeader for Accept {
+    fn header_name() -> Option<HeaderName> {
+        Some(ACCEPT.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -158,32 +161,33 @@ impl super::TypedHeader for Accept {
         for media_type_range in parser_helpers::split_unquoted(header.as_str(), b',') {
             let mut params_iter =
                 parser_helpers::split_unquoted(media_type_range, b';').into_iter();
-            let media_type_range = params_iter.next().ok_or(HeaderParseError)?.trim();
+            let media_type_range = params_iter.next().ok_or_else(HeaderParseError::new)?.trim();
 
             if media_type_range.is_empty() {
                 continue;
             }
 
-            let (media_type, media_subtype) =
-                media_type_range.split_once('/').ok_or(HeaderParseError)?;
+            let (media_type, media_subtype) = media_type_range
+                .split_once('/')
+                .ok_or_else(HeaderParseError::new)?;
             let media_type = media_type.trim();
             let media_subtype = media_subtype.trim();
 
             let media_type = if media_type == "*" {
                 None
             } else if media_type.is_empty() {
-                return Err(HeaderParseError);
+                return Err(HeaderParseError::new());
             } else {
                 Some(
                     media_type
                         .parse::<MediaType>()
-                        .map_err(|_| HeaderParseError)?,
+                        .map_err(|_| HeaderParseError::new())?,
                 )
             };
             let media_subtype = if media_subtype == "*" {
                 None
             } else if media_subtype.is_empty() {
-                return Err(HeaderParseError);
+                return Err(HeaderParseError::new());
             } else {
                 Some(String::from(media_subtype))
             };
@@ -192,7 +196,7 @@ impl super::TypedHeader for Accept {
             for param in params_iter {
                 let param = param.trim();
                 if param.is_empty() {
-                    return Err(HeaderParseError);
+                    return Err(HeaderParseError::new());
                 }
 
                 let (param_name, param_value) = match param.split_once('=') {
@@ -206,7 +210,7 @@ impl super::TypedHeader for Accept {
                         .bytes()
                         .any(|b| !parser_helpers::is_token_char(b))
                 {
-                    return Err(HeaderParseError);
+                    return Err(HeaderParseError::new());
                 }
 
                 let param_value = match param_value {
@@ -219,7 +223,7 @@ impl super::TypedHeader for Accept {
                         if value.is_empty()
                             || value.bytes().any(|b| !parser_helpers::is_token_char(b))
                         {
-                            return Err(HeaderParseError);
+                            return Err(HeaderParseError::new());
                         }
                         Some(String::from(value))
                     }

@@ -19,6 +19,9 @@ pub struct Speed {
 }
 
 impl super::TypedHeader for Speed {
+    fn header_name() -> Option<HeaderName> {
+        Some(SPEED.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -27,14 +30,17 @@ impl super::TypedHeader for Speed {
             Some(header) => header,
         };
 
-        let (lower, upper) = header.as_str().split_once('-').ok_or(HeaderParseError)?;
+        let (lower, upper) = header
+            .as_str()
+            .split_once('-')
+            .ok_or_else(HeaderParseError::new)?;
 
-        let lower_bound = parse_float(lower.trim(), false).map_err(|_| HeaderParseError)?;
-        let upper_bound = parse_float(upper.trim(), false).map_err(|_| HeaderParseError)?;
+        let lower_bound = parse_float(lower.trim(), false).map_err(|_| HeaderParseError::new())?;
+        let upper_bound = parse_float(upper.trim(), false).map_err(|_| HeaderParseError::new())?;
 
         // A speed value of zero is invalid.
         if lower_bound == 0.0 || upper_bound == 0.0 {
-            return Err(HeaderParseError);
+            return Err(HeaderParseError::new());
         }
 
         Ok(Some(Speed {

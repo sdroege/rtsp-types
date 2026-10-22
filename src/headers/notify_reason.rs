@@ -47,6 +47,9 @@ impl std::str::FromStr for NotifyReason {
 }
 
 impl super::TypedHeader for NotifyReason {
+    fn header_name() -> Option<HeaderName> {
+        Some(NOTIFY_REASON.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -55,7 +58,10 @@ impl super::TypedHeader for NotifyReason {
             Some(header) => header,
         };
 
-        let notify_reason = header.as_str().parse().map_err(|_| HeaderParseError)?;
+        let notify_reason = header
+            .as_str()
+            .parse()
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(notify_reason))
     }

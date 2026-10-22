@@ -51,6 +51,9 @@ impl From<Scale> for f64 {
 }
 
 impl super::TypedHeader for Scale {
+    fn header_name() -> Option<HeaderName> {
+        Some(SCALE.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -59,11 +62,11 @@ impl super::TypedHeader for Scale {
             Some(header) => header,
         };
 
-        let scale = parse_float(header.as_str(), true).map_err(|_| HeaderParseError)?;
+        let scale = parse_float(header.as_str(), true).map_err(|_| HeaderParseError::new())?;
 
         // A scale of 0 is equivalent to pause and not allowed.
         if scale == 0.0 {
-            return Err(HeaderParseError);
+            return Err(HeaderParseError::new());
         }
 
         Ok(Some(Scale(scale)))

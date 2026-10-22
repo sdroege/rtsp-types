@@ -186,7 +186,7 @@ pub(super) mod parser {
             match p {
                 ("Random-Access", None) => Ok(MediaProperty::RandomAccess(None)),
                 ("Random-Access", Some(dur)) => {
-                    let dur = dur.parse().map_err(|_| HeaderParseError)?;
+                    let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
                     Ok(MediaProperty::RandomAccess(Some(dur)))
                 }
                 ("Beginning-Only", None) => Ok(MediaProperty::BeginningOnly),
@@ -196,27 +196,27 @@ pub(super) mod parser {
                 ("Time-Progressing", None) => Ok(MediaProperty::TimeProgressing),
                 ("Unlimited", None) => Ok(MediaProperty::Unlimited),
                 ("Time-Limited", Some(time)) => {
-                    let time = time.parse().map_err(|_| HeaderParseError)?;
+                    let time = time.parse().map_err(|_| HeaderParseError::new())?;
                     Ok(MediaProperty::TimeLimited(time))
                 }
                 ("Time-Duration", Some(dur)) => {
-                    let dur = dur.parse().map_err(|_| HeaderParseError)?;
+                    let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
                     Ok(MediaProperty::TimeDuration(dur))
                 }
                 ("Scales", Some(scales)) => {
                     if !scales.starts_with('"') || !scales.ends_with('"') {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     let mut s = Vec::new();
                     for scale in scales[1..(scales.len() - 1)].split(',') {
                         let scale = scale.trim();
                         if let Some((a, b)) = scale.split_once(':') {
-                            let a = a.parse().map_err(|_| HeaderParseError)?;
-                            let b = b.parse().map_err(|_| HeaderParseError)?;
+                            let a = a.parse().map_err(|_| HeaderParseError::new())?;
+                            let b = b.parse().map_err(|_| HeaderParseError::new())?;
                             s.push(ScaleRange::Range(a, b));
                         } else {
-                            let a = scale.parse().map_err(|_| HeaderParseError)?;
+                            let a = scale.parse().map_err(|_| HeaderParseError::new())?;
                             s.push(ScaleRange::Scale(a));
                         }
                     }
@@ -237,6 +237,9 @@ pub(super) mod parser {
 }
 
 impl super::TypedHeader for MediaProperties {
+    fn header_name() -> Option<HeaderName> {
+        Some(MEDIA_PROPERTIES.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -245,8 +248,8 @@ impl super::TypedHeader for MediaProperties {
             Some(header) => header,
         };
 
-        let (_rem, properties) =
-            parser::media_properties(header.as_str().as_bytes()).map_err(|_| HeaderParseError)?;
+        let (_rem, properties) = parser::media_properties(header.as_str().as_bytes())
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(properties.into()))
     }

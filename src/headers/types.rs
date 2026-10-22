@@ -493,6 +493,15 @@ pub trait TypedHeader: Sized {
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError>;
     /// Inserts the header into headers.
     fn insert_into(&self, headers: impl AsMut<Headers>);
+    /// Inserts the header into the headers of a request.
+    ///
+    /// The default implementation is [`insert_into`](Self::insert_into).
+    /// Headers whose wire format differs between requests and responses
+    /// override this, e.g. `Session` omits the timeout in requests as
+    /// required by RFC 7826 section 10.5.
+    fn insert_into_request(&self, headers: impl AsMut<Headers>) {
+        self.insert_into(headers)
+    }
 }
 
 /// Trait for typed headers that can be appended.

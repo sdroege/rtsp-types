@@ -4,6 +4,7 @@
 
 use super::*;
 
+use super::parser_helpers::parse_digits;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt;
@@ -109,6 +110,86 @@ impl<'a> From<&'a str> for RtpProfile {
     }
 }
 
+/// Transport connection setup direction. RTSP 2.0 only.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum TransportSetup {
+    /// The client initiates an outgoing connection.
+    Active,
+    /// The client accepts an incoming connection.
+    Passive,
+    /// The client accepts an incoming or initiates an outgoing connection.
+    Actpass,
+}
+
+impl TransportSetup {
+    /// Return setup as `&str`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            TransportSetup::Active => "active",
+            TransportSetup::Passive => "passive",
+            TransportSetup::Actpass => "actpass",
+        }
+    }
+}
+
+impl fmt::Display for TransportSetup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl<'a> TryFrom<&'a str> for TransportSetup {
+    type Error = HeaderParseError;
+
+    fn try_from(setup: &'a str) -> Result<TransportSetup, HeaderParseError> {
+        match setup {
+            "active" => Ok(TransportSetup::Active),
+            "passive" => Ok(TransportSetup::Passive),
+            "actpass" => Ok(TransportSetup::Actpass),
+            _ => Err(HeaderParseError::new()),
+        }
+    }
+}
+
+/// Transport connection reuse preference. RTSP 2.0 only.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum TransportConnection {
+    /// Create a new connection.
+    New,
+    /// Reuse an existing connection.
+    Existing,
+}
+
+impl TransportConnection {
+    /// Return connection as `&str`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            TransportConnection::New => "new",
+            TransportConnection::Existing => "existing",
+        }
+    }
+}
+
+impl fmt::Display for TransportConnection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl<'a> TryFrom<&'a str> for TransportConnection {
+    type Error = HeaderParseError;
+
+    fn try_from(connection: &'a str) -> Result<TransportConnection, HeaderParseError> {
+        match connection {
+            "new" => Ok(TransportConnection::New),
+            "existing" => Ok(TransportConnection::Existing),
+            _ => Err(HeaderParseError::new()),
+        }
+    }
+}
+
 /// RTP transport description.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -133,7 +214,8 @@ pub struct RtpTransportParameters {
     pub interleaved: Option<(u8, Option<u8>)>,
     /// Multicast packet time-to-live.
     pub ttl: Option<u8>,
-    // TODO layers
+    /// Multicast layers. RTSP 2.0 only.
+    pub layers: Option<u32>,
     /// Stream SSRCs if known.
     pub ssrc: Vec<u32>,
     /// Transport mode.
@@ -156,8 +238,12 @@ pub struct RtpTransportParameters {
     pub destination: Option<String>,
     /// Source address. RTSP 1.0 only.
     pub source: Option<String>,
-    // TODO: setup, connection
-    // TODO mikey
+    /// Connection setup direction. RTSP 2.0 only.
+    pub setup: Option<TransportSetup>,
+    /// Connection reuse preference. RTSP 2.0 only.
+    pub connection: Option<TransportConnection>,
+    /// MIKEY keying data, base64-encoded. RTSP 2.0 only.
+    pub mikey: Option<String>,
     /// Other parameters.
     ///
     /// These are raw parameter strings, i.e. they might be quoted strings.
@@ -200,6 +286,14 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                         .ok_or_else(HeaderParseError::new)?;
 
                     rtp_params.ttl = Some(ttl);
+                }
+                "layers" => {
+                    let layers = value
+                        .as_deref()
+                        .and_then(|s| parse_digits::<u32>(s).ok())
+                        .ok_or_else(HeaderParseError::new)?;
+
+                    rtp_params.layers = Some(layers);
                 }
                 "ssrc" => {
                     let ssrc = value
@@ -316,6 +410,24 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 "RTCP-mux" => {
                     rtp_params.rtcp_mux = true;
                 }
+                "setup" => {
+                    let setup = value.ok_or_else(HeaderParseError::new)?;
+                    rtp_params.setup = Some(TransportSetup::try_from(setup.as_str())?);
+                }
+                "connection" => {
+                    let connection = value.ok_or_else(HeaderParseError::new)?;
+                    rtp_params.connection =
+                        Some(TransportConnection::try_from(connection.as_str())?);
+                }
+                "MIKEY" => {
+                    let mikey = value.ok_or_else(HeaderParseError::new)?;
+
+                    if !is_valid_base64(&mikey) {
+                        return Err(HeaderParseError::new());
+                    }
+
+                    rtp_params.mikey = Some(mikey);
+                }
                 _ => {
                     rtp_params.others.insert(name, value);
                 }
@@ -323,6 +435,30 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
         }
 
         Ok(rtp_params)
+    }
+}
+
+/// Check for the `base64` rule of RFC 7826 section 20.39: `*base64-unit
+/// [base64-pad]` with `base64-unit = 4base64-char` and `base64-pad =
+/// (2base64-char "==") / (3base64-char "=")`.
+fn is_valid_base64(s: &str) -> bool {
+    let (data, padding) = match s.find('=') {
+        Some(i) => s.split_at(i),
+        None => (s, ""),
+    };
+
+    if !data
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/')
+    {
+        return false;
+    }
+
+    match padding {
+        "" => data.len() % 4 == 0,
+        "==" => data.len() % 4 == 2,
+        "=" => data.len() % 4 == 3,
+        _ => false,
     }
 }
 
@@ -426,7 +562,7 @@ mod parser {
 
     use super::parser_helpers::{cond_parser, rtsp_unreserved, token, trim};
     use nom::branch::alt;
-    use nom::bytes::complete::tag;
+    use nom::bytes::complete::{tag, take_while};
     use nom::combinator::{all_consuming, map_res};
     use nom::multi::{many0, separated_list1};
     use nom::sequence::{preceded, tuple};
@@ -507,6 +643,12 @@ mod parser {
         Ok((snd, fst))
     }
 
+    // MIKEY carries base64 data, which may contain '/' characters and
+    // trailing '=' padding that are not rtsp-unreserved characters.
+    fn mikey_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        take_while(|b: u8| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=')(input)
+    }
+
     fn parameter(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
         if input.is_empty() {
             return Err(Err::Error(nom::error::Error::new(
@@ -515,16 +657,25 @@ mod parser {
             )));
         }
 
-        tuple((
-            trim(map_res(token, str::from_utf8)),
-            cond_parser(
-                tag(b"="),
-                trim(map_res(
-                    alt((quoted_string_or_address_list, rtsp_unreserved)),
-                    str::from_utf8,
-                )),
-            ),
-        ))(input)
+        let (input, name) = trim(map_res(token, str::from_utf8))(input)?;
+
+        type ValueParser = fn(&[u8]) -> IResult<&[u8], &[u8]>;
+
+        let value_parser: ValueParser = if name == "MIKEY" {
+            mikey_value
+        } else {
+            rtsp_unreserved
+        };
+
+        let (input, value) = cond_parser(
+            tag(b"="),
+            trim(map_res(
+                alt((quoted_string_or_address_list, value_parser)),
+                str::from_utf8,
+            )),
+        )(input)?;
+
+        Ok((input, (name, value)))
     }
 
     fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
@@ -666,6 +817,11 @@ impl super::TypedHeader for Transports {
                         write!(&mut transports, "ttl={ttl}").unwrap();
                     }
 
+                    if let Some(layers) = rtp.params.layers {
+                        transports.push(';');
+                        write!(&mut transports, "layers={layers}").unwrap();
+                    }
+
                     if !rtp.params.ssrc.is_empty() {
                         transports.push(';');
 
@@ -778,6 +934,21 @@ impl super::TypedHeader for Transports {
                     if rtp.params.rtcp_mux {
                         transports.push(';');
                         transports.push_str("RTCP-mux");
+                    }
+
+                    if let Some(ref setup) = rtp.params.setup {
+                        transports.push(';');
+                        write!(&mut transports, "setup={setup}").unwrap();
+                    }
+
+                    if let Some(ref connection) = rtp.params.connection {
+                        transports.push(';');
+                        write!(&mut transports, "connection={connection}").unwrap();
+                    }
+
+                    if let Some(ref mikey) = rtp.params.mikey {
+                        transports.push(';');
+                        write!(&mut transports, "MIKEY={mikey}").unwrap();
                     }
 
                     for (name, value) in &rtp.params.others {
@@ -1245,5 +1416,143 @@ mod tests {
                 header
             );
         }
+    }
+
+    #[test]
+    fn test_transport_setup_connection_layers() {
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(
+                crate::headers::TRANSPORT,
+                "RTP/AVP/TCP;setup=actpass;connection=new",
+            )
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        let [Transport::Rtp(rtp)] = &transports.0[..] else {
+            panic!("unexpected transports: {:?}", transports);
+        };
+
+        assert_eq!(rtp.params.setup, Some(super::TransportSetup::Actpass));
+        assert_eq!(rtp.params.connection, Some(super::TransportConnection::New));
+
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, "RTP/AVP;multicast;layers=3")
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        let [Transport::Rtp(rtp)] = &transports.0[..] else {
+            panic!("unexpected transports: {:?}", transports);
+        };
+
+        assert_eq!(rtp.params.layers, Some(3));
+    }
+
+    #[test]
+    fn test_transport_mikey() {
+        // The RFC 7826 Appendix example MIKEY values contain base64
+        // characters outside the rtsp-unreserved set.
+        let ok_values = [
+            "TUlLRVkgZm9yIHN0cmVhbSB0d2lzdGVyLjNncC90cmFja0lEPTQ=",
+            "ab==",
+            "abc=",
+            "",
+        ];
+
+        for value in ok_values {
+            let header = format!("RTP/SAVP;MIKEY={}", value);
+            let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+                .header(crate::headers::TRANSPORT, header.as_str())
+                .empty();
+
+            let transports = request
+                .typed_header::<super::Transports>()
+                .unwrap_or_else(|_| panic!("couldn't parse {}", header))
+                .unwrap();
+
+            let [Transport::Rtp(rtp)] = &transports.0[..] else {
+                panic!("unexpected transports: {:?}", transports);
+            };
+
+            assert_eq!(rtp.params.mikey.as_deref(), Some(value));
+        }
+    }
+
+    #[test]
+    fn test_transport_invalid_setup_connection_layers_mikey() {
+        let bad_headers = [
+            // "holdconn" is not defined for RTSP (RFC 7826 section 18.54).
+            "RTP/AVP/TCP;setup=holdconn",
+            "RTP/AVP/TCP;setup=ACTIVE",
+            "RTP/AVP/TCP;setup=",
+            "RTP/AVP/TCP;setup",
+            "RTP/AVP/TCP;connection=x",
+            "RTP/AVP/TCP;connection",
+            // layers = 1*DIGIT.
+            "RTP/AVP;layers=abc",
+            "RTP/AVP;layers=+1",
+            "RTP/AVP;layers=-1",
+            "RTP/AVP;layers=",
+            "RTP/AVP;layers=4294967296",
+            // MIKEY-Value = base64, padding only at the end.
+            "RTP/AVP;MIKEY=abcd=",
+            "RTP/AVP;MIKEY=a=",
+            "RTP/AVP;MIKEY=ab=cd",
+            "RTP/AVP;MIKEY=ab*cd",
+        ];
+
+        for header in bad_headers {
+            let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+                .header(crate::headers::TRANSPORT, header)
+                .empty();
+
+            assert!(
+                request.typed_header::<super::Transports>().is_err(),
+                "{} should fail",
+                header
+            );
+        }
+    }
+
+    #[test]
+    fn test_transport_new_params_roundtrip() {
+        let header = "RTP/AVP;layers=3;setup=passive;connection=existing;MIKEY=abcd//==";
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .header(crate::headers::TRANSPORT, header)
+            .empty();
+
+        let transports = request
+            .typed_header::<super::Transports>()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            transports,
+            vec![Transport::Rtp(RtpTransport {
+                profile: super::RtpProfile::Avp,
+                lower_transport: None,
+                params: RtpTransportParameters {
+                    layers: Some(3),
+                    setup: Some(super::TransportSetup::Passive),
+                    connection: Some(super::TransportConnection::Existing),
+                    mikey: Some("abcd//==".into()),
+                    ..Default::default()
+                },
+            })]
+            .into()
+        );
+
+        let request2 = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&transports)
+            .empty();
+
+        assert_eq!(request2.header(&crate::headers::TRANSPORT).unwrap(), header);
     }
 }

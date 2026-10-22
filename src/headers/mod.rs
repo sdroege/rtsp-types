@@ -59,6 +59,6 @@ pub use speed::Speed;
 pub use supported::Supported;
 pub use transport::{
     OtherTransport, RtpLowerTransport, RtpProfile, RtpTransport, RtpTransportParameters, Transport,
-    TransportMode, TransportParameters, Transports,
+    TransportConnection, TransportMode, TransportParameters, TransportSetup, Transports,
 };
 pub use unsupported::Unsupported;

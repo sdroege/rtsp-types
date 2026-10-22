@@ -254,13 +254,32 @@ fn data(input: &[u8]) -> IResult<&[u8], DataRef<'_>> {
 }
 
 pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef<'_>> {
-    flat_map(fold_many0(crlf, || (), |_acc, _item| ()), |_| {
-        alt((
-            map(data, MessageRef::Data),
-            map(request, MessageRef::Request),
-            map(response, MessageRef::Response),
-        ))
-    })(input)
+    let (input, ()) = fold_many0(crlf, || (), |(), _| ())(input)?;
+
+    if input.is_empty() {
+        return Err(Err::Incomplete(Needed::Unknown));
+    }
+
+    // Convert backtrackable errors into irrecoverable ones. The message type
+    // is determined by the first byte(s), so errors from other message types
+    // must not replace the error from the matching one.
+    fn commit<T>(res: IResult<&[u8], T>) -> IResult<&[u8], T> {
+        res.map_err(|err| match err {
+            Err::Error(err) => Err::Failure(err),
+            err => err,
+        })
+    }
+
+    if input[0] == b'$' {
+        let (rest, data) = commit(data(input))?;
+        Ok((rest, MessageRef::Data(data)))
+    } else if input.starts_with(b"RTSP/") {
+        let (rest, response) = commit(response(input))?;
+        Ok((rest, MessageRef::Response(response)))
+    } else {
+        let (rest, request) = commit(request(input))?;
+        Ok((rest, MessageRef::Request(request)))
+    }
 }
 
 #[cfg(test)]

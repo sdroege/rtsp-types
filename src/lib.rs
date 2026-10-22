@@ -486,28 +486,121 @@ impl AsRef<[u8]> for Empty {
 }
 
 /// Message parsing error.
-// TODO: Distinguish more errors and provide more information!
 #[derive(Debug)]
 pub enum ParseError {
-    /// Parsing failed irrecoverably.
+    /// Message syntax is invalid at a known position in the input.
+    Invalid(ParseSyntaxError),
+    /// Message could not be parsed for a reason unrelated to the message
+    /// framing syntax, e.g. an invalid request URI or header name.
     Error,
     /// Message was not complete and more data is required.
     Incomplete(Option<NonZeroUsize>),
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ParseError::Invalid(ref err) => Some(err),
+            _ => None,
+        }
+    }
+}
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
+            ParseError::Invalid(ref err) => write!(f, "{err}"),
             ParseError::Error => write!(f, "Parse Error"),
             ParseError::Incomplete(needed) => write!(f, "Incomplete message: {needed:?}"),
         }
     }
 }
 
+/// Section of an RTSP message in which parsing failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParseSyntaxSection {
+    /// The request line of a request.
+    RequestLine,
+    /// The status line of a response.
+    StatusLine,
+    /// One of the message headers.
+    HeaderLine,
+    /// The message body or an interleaved data frame.
+    Body,
+}
+
+impl std::error::Error for ParseSyntaxSection {}
+
+impl std::fmt::Display for ParseSyntaxSection {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match *self {
+            ParseSyntaxSection::RequestLine => write!(f, "request line"),
+            ParseSyntaxSection::StatusLine => write!(f, "status line"),
+            ParseSyntaxSection::HeaderLine => write!(f, "header line"),
+            ParseSyntaxSection::Body => write!(f, "message body"),
+        }
+    }
+}
+
+/// Details of a syntax error encountered while parsing an RTSP message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseSyntaxError {
+    section: ParseSyntaxSection,
+    offset: usize,
+    line: String,
+    expected: &'static str,
+}
+
+impl ParseSyntaxError {
+    pub(crate) fn new(
+        section: ParseSyntaxSection,
+        offset: usize,
+        line: String,
+        expected: &'static str,
+    ) -> Self {
+        ParseSyntaxError {
+            section,
+            offset,
+            line,
+            expected,
+        }
+    }
+
+    /// Section of the message in which parsing failed.
+    pub fn section(&self) -> ParseSyntaxSection {
+        self.section
+    }
+
+    /// Byte offset into the parsed buffer at which parsing failed.
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    /// Line of the message in which parsing failed, truncated if longer than
+    /// 128 bytes.
+    pub fn line(&self) -> &str {
+        &self.line
+    }
+
+    /// Kind of input that was expected at the position where parsing failed.
+    pub fn expected(&self) -> &'static str {
+        self.expected
+    }
+}
+
+impl std::error::Error for ParseSyntaxError {}
+
+impl std::fmt::Display for ParseSyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "syntax error in {} at offset {}, expected {}, in line '{}'",
+            self.section, self.offset, self.expected, self.line
+        )
+    }
+}
+
 /// Serialization write error.
-// TODO: Distinguish more errors and provide more information!
 #[derive(Debug)]
 pub enum WriteError {
     /// Error reported by the underlying IO type

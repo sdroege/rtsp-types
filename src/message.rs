@@ -104,7 +104,8 @@ impl<'a, T: From<&'a [u8]>> Message<T> {
     /// If parsing the message fails with [`ParseError::Incomplete`](enum.ParseError.html#variant.Incomplete)
     /// then the caller has to provide more data for successfully parsing the message.
     ///
-    /// Otherwise, if parsing the message fails with [`ParseError::Error`](enum.ParseError.html#variant.Error)
+    /// Otherwise, if parsing the message fails with [`ParseError::Invalid`](enum.ParseError.html#variant.Invalid)
+    /// or [`ParseError::Error`](enum.ParseError.html#variant.Error)
     /// then the message can't be parsed and the caller can try skipping over some data until
     /// parsing succeeds again.
     ///

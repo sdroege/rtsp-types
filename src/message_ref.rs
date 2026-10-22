@@ -35,7 +35,9 @@ impl<'a> MessageRef<'a> {
                     _ => None,
                 }))
             }
-            Err(_) => return Err(ParseError::Error),
+            Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
+                return Err(ParseError::Invalid(syntax_error(buf, &err)))
+            }
         };
 
         let consumed = buf.len() - remainder.len();
@@ -61,6 +63,102 @@ impl<'a> MessageRef<'a> {
                 .map(|(_w, pos)| pos)
                 .expect("request/response serialization to sink cannot fail"),
         }
+    }
+}
+
+// Maximum length of the offending line included in a syntax error.
+const MAX_ERROR_LINE_LEN: usize = 128;
+
+fn syntax_error(buf: &[u8], err: &nom::error::Error<&[u8]>) -> ParseSyntaxError {
+    // The parser only ever fails with a subslice of the input buffer.
+    let offset = err.input.as_ptr() as usize - buf.as_ptr() as usize;
+    debug_assert!(offset + err.input.len() <= buf.len());
+
+    let line = error_line(buf, offset);
+    let section = error_section(buf, offset);
+
+    ParseSyntaxError::new(section, offset, line, expected_input(err.code))
+}
+
+fn error_line(buf: &[u8], offset: usize) -> String {
+    let offset = offset.min(buf.len());
+    let start = buf[..offset]
+        .iter()
+        .rposition(|&b| b == b'\n')
+        .map_or(0, |i| i + 1);
+    let end = buf[start..]
+        .iter()
+        .position(|&b| b == b'\n' || b == b'\r')
+        .map_or(buf.len(), |i| start + i);
+
+    let raw = &buf[start..end];
+    let truncated = raw.len() > MAX_ERROR_LINE_LEN;
+    let mut line = String::from_utf8_lossy(if truncated {
+        &raw[..MAX_ERROR_LINE_LEN]
+    } else {
+        raw
+    })
+    .into_owned();
+    if truncated {
+        line.push_str("...");
+    }
+    line
+}
+
+fn error_section(buf: &[u8], offset: usize) -> ParseSyntaxSection {
+    let mut start = 0;
+    while buf[start..].starts_with(b"\r\n") {
+        start += 2;
+    }
+
+    // Interleaved data frames have no textual lines.
+    if buf[start..].starts_with(b"$") {
+        return ParseSyntaxSection::Body;
+    }
+
+    let line_end = find_crlf(&buf[start..]).map_or(buf.len(), |i| start + i);
+    if offset <= line_end {
+        return if buf[start..].starts_with(b"RTSP/") {
+            ParseSyntaxSection::StatusLine
+        } else {
+            ParseSyntaxSection::RequestLine
+        };
+    }
+
+    let mut pos = line_end + 2;
+    while pos < buf.len() && !buf[pos..].starts_with(b"\r\n") {
+        match find_crlf(&buf[pos..]) {
+            Some(i) if offset <= pos + i => return ParseSyntaxSection::HeaderLine,
+            Some(i) => pos += i + 2,
+            None => return ParseSyntaxSection::HeaderLine,
+        }
+    }
+
+    ParseSyntaxSection::Body
+}
+
+fn find_crlf(input: &[u8]) -> Option<usize> {
+    input.windows(2).position(|w| w == b"\r\n")
+}
+
+fn expected_input(kind: nom::error::ErrorKind) -> &'static str {
+    use nom::error::ErrorKind;
+
+    match kind {
+        ErrorKind::Tag => "literal",
+        ErrorKind::Char | ErrorKind::Satisfy => "character",
+        ErrorKind::OneOf | ErrorKind::IsA => "one of a set of characters",
+        ErrorKind::IsNot => "character outside a set of characters",
+        ErrorKind::Alpha => "alphabetic character",
+        ErrorKind::Digit => "digit",
+        ErrorKind::HexDigit => "hexadecimal digit",
+        ErrorKind::AlphaNumeric => "alphanumeric character",
+        ErrorKind::Space | ErrorKind::MultiSpace => "whitespace",
+        ErrorKind::Eof => "end of input",
+        ErrorKind::MapRes | ErrorKind::MapOpt => "valid value",
+        ErrorKind::TakeWhile1 => "non-empty matching input",
+        ErrorKind::TakeTill1 | ErrorKind::TakeUntil => "text",
+        _ => "input",
     }
 }
 
@@ -470,5 +568,74 @@ mod tests {
         let (parsed, _) = MessageRef::parse(msg).expect("should parse");
 
         assert!(parsed.to_owned::<Vec<u8>>().is_err());
+    }
+
+    #[test]
+    fn test_parse_error_request_line() {
+        let err = MessageRef::parse(b"DESCRIBE rtsp://example.com RTSP/1.3\r\n\r\n").unwrap_err();
+
+        match err {
+            ParseError::Invalid(err) => {
+                assert_eq!(err.section(), ParseSyntaxSection::RequestLine);
+                assert_eq!(err.offset(), 34);
+                assert_eq!(err.line(), "DESCRIBE rtsp://example.com RTSP/1.3");
+                assert_eq!(err.expected(), "literal");
+            }
+            other => panic!("expected invalid parse error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_status_line() {
+        let err = MessageRef::parse(b"RTSP/2.0 2XX OK\r\n\r\n").unwrap_err();
+
+        match err {
+            ParseError::Invalid(err) => {
+                assert_eq!(err.section(), ParseSyntaxSection::StatusLine);
+                assert!(err.offset() > 0);
+                assert_eq!(err.line(), "RTSP/2.0 2XX OK");
+                assert!(!err.expected().is_empty());
+            }
+            other => panic!("expected invalid parse error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_header_line() {
+        let err =
+            MessageRef::parse(b"OPTIONS * RTSP/2.0\r\nContent-Length: abc\r\n\r\n").unwrap_err();
+
+        match err {
+            ParseError::Invalid(err) => {
+                assert_eq!(err.section(), ParseSyntaxSection::HeaderLine);
+                assert_eq!(err.offset(), 36);
+                assert_eq!(err.line(), "Content-Length: abc");
+                assert_eq!(err.expected(), "valid value");
+                assert_eq!(
+                    err.to_string(),
+                    "syntax error in header line at offset 36, expected valid value, in line 'Content-Length: abc'"
+                );
+            }
+            other => panic!("expected invalid parse error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_error_line_truncation() {
+        let mut msg = b"OPTIONS * RTSP/2.0\r\nContent-Length: ".to_vec();
+        msg.extend(std::iter::repeat_n(b'a', 1000));
+        msg.extend_from_slice(b"\r\n\r\n");
+
+        let err = MessageRef::parse(&msg).unwrap_err();
+
+        match err {
+            ParseError::Invalid(err) => {
+                assert_eq!(
+                    err.line(),
+                    "Content-Length: ".to_string() + &"a".repeat(112) + "..."
+                );
+            }
+            other => panic!("expected invalid parse error, got {:?}", other),
+        }
     }
 }

@@ -80,6 +80,12 @@ impl super::TypedHeader for Session {
             headers.insert(SESSION, self.0.to_string());
         }
     }
+
+    fn insert_into_request(&self, mut headers: impl AsMut<Headers>) {
+        // RFC 7826 section 10.5: the timeout parameter MUST NOT be
+        // included in requests.
+        headers.as_mut().insert(SESSION, self.0.to_string());
+    }
 }
 
 #[cfg(test)]
@@ -198,5 +204,71 @@ mod tests {
 
             assert_eq!(from_headers_result, None, "{header}:{value}");
         }
+    }
+
+    #[test]
+    fn test_session_serialization_per_message_type() {
+        let session = Session::with_timeout("12345678".into(), 60);
+
+        // RFC 7826 section 10.5: the timeout parameter MUST NOT be
+        // included in requests.
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&session)
+            .empty();
+
+        assert_eq!(
+            request.header(&crate::headers::SESSION).unwrap(),
+            "12345678"
+        );
+
+        let mut request =
+            crate::Request::builder(crate::Method::Setup, crate::Version::V2_0).empty();
+        request.insert_typed_header(&session);
+
+        assert_eq!(
+            request.header(&crate::headers::SESSION).unwrap(),
+            "12345678"
+        );
+
+        // ... but is allowed in responses.
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .typed_header(&session)
+            .empty();
+
+        assert_eq!(
+            response.header(&crate::headers::SESSION).unwrap(),
+            "12345678;timeout=60"
+        );
+    }
+
+    #[test]
+    fn test_session_reuse_from_response_in_request() {
+        // Use a Session from a SETUP response as-is in requests (GitHub
+        // issue #24).
+        let response = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .header(crate::headers::SESSION, "12345678;timeout=60")
+            .empty();
+
+        let session = response.typed_header::<Session>().unwrap().unwrap();
+        assert_eq!(session, Session::with_timeout("12345678".into(), 60));
+
+        let request = crate::Request::builder(crate::Method::Setup, crate::Version::V2_0)
+            .typed_header(&session)
+            .empty();
+
+        assert_eq!(
+            request.header(&crate::headers::SESSION).unwrap(),
+            "12345678"
+        );
+
+        // The timeout is still preserved when used in another response.
+        let response2 = crate::Response::builder(crate::Version::V2_0, crate::StatusCode::Ok)
+            .typed_header(&session)
+            .empty();
+
+        assert_eq!(
+            response2.header(&crate::headers::SESSION).unwrap(),
+            "12345678;timeout=60"
+        );
     }
 }

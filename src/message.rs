@@ -468,7 +468,7 @@ impl<Body> Request<Body> {
     ///
     /// If a header with the same name already exists then its value will be replaced.
     pub fn insert_typed_header<H: TypedHeader>(&mut self, header: &H) {
-        self.headers.insert_typed(header);
+        header.insert_into_request(&mut self.headers);
     }
 
     /// Removes the RTSP header if it exists.
@@ -555,7 +555,7 @@ impl RequestBuilder {
 
     /// Append a typed header to the request.
     pub fn typed_header<H: TypedHeader>(mut self, header: &H) -> Self {
-        self.0.headers.insert_typed(header);
+        header.insert_into_request(&mut self.0.headers);
 
         self
     }

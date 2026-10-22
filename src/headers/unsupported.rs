@@ -136,6 +136,9 @@ impl UnsupportedBuilder {
 }
 
 impl super::TypedHeader for Unsupported {
+    fn header_name() -> Option<HeaderName> {
+        Some(UNSUPPORTED.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 

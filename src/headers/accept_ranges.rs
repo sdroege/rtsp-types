@@ -126,6 +126,9 @@ impl AcceptRangesBuilder {
 }
 
 impl super::TypedHeader for AcceptRanges {
+    fn header_name() -> Option<HeaderName> {
+        Some(ACCEPT_RANGES.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 

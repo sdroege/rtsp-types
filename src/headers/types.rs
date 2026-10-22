@@ -168,7 +168,13 @@ impl Headers {
 
     /// Gets a typed RTSP header value if it exists.
     pub fn get_typed<H: TypedHeader>(&self) -> Result<Option<H>, HeaderParseError> {
-        H::from_headers(self)
+        H::from_headers(self).map_err(|e| match H::header_name() {
+            Some(name) => match self.get(&name) {
+                Some(value) => e.with_context(&name, value.as_str()),
+                None => e,
+            },
+            None => e,
+        })
     }
 
     /// Gets a mutable reference to an RTSP header value if it exists.
@@ -478,6 +484,11 @@ impl fmt::Display for HeaderValue {
 
 /// Trait for typed headers.
 pub trait TypedHeader: Sized {
+    /// The name of the header this type parses, used to add context to
+    /// `HeaderParseError` messages. `None` prevents context from being added.
+    fn header_name() -> Option<HeaderName> {
+        None
+    }
     /// Parses the header from headers.
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError>;
     /// Inserts the header into headers.
@@ -514,21 +525,84 @@ impl fmt::Display for Utf8Error {
     }
 }
 
+/// Longest header value included in a `HeaderParseError` message.
+const MAX_ERROR_VALUE_LEN: usize = 128;
+
 /// Parsing a `HeaderValue` failed.
+///
+/// The error message names the offending header and value when the error
+/// comes from parsing a header out of a `Headers` map; errors from parsing
+/// a bare string only carry a generic message.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HeaderParseError;
+pub struct HeaderParseError(String);
+
+impl HeaderParseError {
+    /// Creates a new header parse error with a generic message.
+    pub fn new() -> Self {
+        HeaderParseError(String::from("Error parsing header"))
+    }
+
+    // Replaces the message with one naming the header and (a truncated)
+    // value; called by the `TypedHeader` implementations.
+    pub(crate) fn with_context(mut self, header: &HeaderName, value: &str) -> Self {
+        let cut = value
+            .char_indices()
+            .map(|i| i.0)
+            .find(|&i| i >= MAX_ERROR_VALUE_LEN)
+            .unwrap_or(value.len());
+        let ellipsis = if cut < value.len() { "..." } else { "" };
+        self.0 = format!("invalid '{}' value '{}{}'", header, &value[..cut], ellipsis);
+        self
+    }
+}
+
+impl Default for HeaderParseError {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl error::Error for HeaderParseError {}
 
 impl fmt::Display for HeaderParseError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "Error parsing header")
+        fmt.write_str(&self.0)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_header_parse_error_messages() {
+        assert_eq!(HeaderParseError::new().to_string(), "Error parsing header");
+
+        let err = HeaderParseError::new().with_context(&crate::headers::RANGE, "npt=0-10");
+        assert_eq!(err.to_string(), "invalid 'Range' value 'npt=0-10'");
+
+        let long_value = "x".repeat(MAX_ERROR_VALUE_LEN + 10);
+        let err = HeaderParseError::new().with_context(&crate::headers::RANGE, &long_value);
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "invalid 'Range' value '{}...'",
+                "x".repeat(MAX_ERROR_VALUE_LEN)
+            )
+        );
+    }
+
+    #[test]
+    fn test_get_typed_error_context() {
+        let mut headers = Headers::new();
+        headers.insert(crate::headers::CSEQ, "not-a-number");
+        let err = headers.get_typed::<crate::headers::CSeq>().unwrap_err();
+        assert_eq!(err.to_string(), "invalid 'CSeq' value 'not-a-number'");
+
+        // Errors from parsing a bare string carry no header context.
+        let err = "npt=xyz".parse::<crate::headers::Range>().unwrap_err();
+        assert_eq!(err.to_string(), "Error parsing header");
+    }
 
     fn name(s: &str) -> HeaderName {
         HeaderName::try_from(s).unwrap()

@@ -208,7 +208,7 @@ pub(crate) fn parse_quoted_string(s: &str) -> Result<String, HeaderParseError> {
     let bytes = s.as_bytes();
 
     if bytes.first() != Some(&b'"') {
-        return Err(HeaderParseError);
+        return Err(HeaderParseError::new());
     }
 
     let mut value = Vec::new();
@@ -218,7 +218,7 @@ pub(crate) fn parse_quoted_string(s: &str) -> Result<String, HeaderParseError> {
     for (index, byte) in bytes[1..].iter().enumerate() {
         if escaped {
             if *byte != b'"' && *byte != b'\\' {
-                return Err(HeaderParseError);
+                return Err(HeaderParseError::new());
             }
             value.push(*byte);
             escaped = false;
@@ -226,7 +226,7 @@ pub(crate) fn parse_quoted_string(s: &str) -> Result<String, HeaderParseError> {
             escaped = true;
         } else if *byte == b'"' {
             if index + 1 != bytes.len() - 1 {
-                return Err(HeaderParseError);
+                return Err(HeaderParseError::new());
             }
             closed = true;
             break;
@@ -235,17 +235,17 @@ pub(crate) fn parse_quoted_string(s: &str) -> Result<String, HeaderParseError> {
             || (b'#'..=b'[').contains(byte)
             || (b']'..=b'~').contains(byte))
         {
-            return Err(HeaderParseError);
+            return Err(HeaderParseError::new());
         } else {
             value.push(*byte);
         }
     }
 
     if !closed || escaped {
-        return Err(HeaderParseError);
+        return Err(HeaderParseError::new());
     }
 
-    String::from_utf8(value).map_err(|_| HeaderParseError)
+    String::from_utf8(value).map_err(|_| HeaderParseError::new())
 }
 
 /// Writes `value` as a quoted string to `f`, escaping quotes and

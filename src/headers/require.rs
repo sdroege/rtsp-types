@@ -136,6 +136,9 @@ impl RequireBuilder {
 }
 
 impl super::TypedHeader for Require {
+    fn header_name() -> Option<HeaderName> {
+        Some(REQUIRE.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 

@@ -179,17 +179,17 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     rtp_params.multicast = true;
                 }
                 "interleaved" => {
-                    let channels = value.ok_or(HeaderParseError)?;
+                    let channels = value.ok_or_else(HeaderParseError::new)?;
                     let mut channels = channels.splitn(2, '-');
 
                     let channel_start = channels
                         .next()
                         .and_then(|s| s.parse::<u8>().ok())
-                        .ok_or(HeaderParseError)?;
+                        .ok_or_else(HeaderParseError::new)?;
 
                     let channel_end = channels
                         .next()
-                        .map(|s| s.parse::<u8>().map_err(|_| HeaderParseError))
+                        .map(|s| s.parse::<u8>().map_err(|_| HeaderParseError::new()))
                         .transpose()?;
 
                     rtp_params.interleaved = Some((channel_start, channel_end));
@@ -197,36 +197,36 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                 "ttl" => {
                     let ttl = value
                         .and_then(|s| s.parse::<u8>().ok())
-                        .ok_or(HeaderParseError)?;
+                        .ok_or_else(HeaderParseError::new)?;
 
                     rtp_params.ttl = Some(ttl);
                 }
                 "ssrc" => {
                     let ssrc = value
-                        .ok_or(HeaderParseError)?
+                        .ok_or_else(HeaderParseError::new)?
                         .split('/')
                         .map(|s| {
                             // ssrc = 8HEX
                             if s.len() != 8 {
-                                return Err(HeaderParseError);
+                                return Err(HeaderParseError::new());
                             }
 
-                            u32::from_str_radix(s, 16).map_err(|_| HeaderParseError)
+                            u32::from_str_radix(s, 16).map_err(|_| HeaderParseError::new())
                         })
                         .collect::<Result<Vec<_>, _>>()?;
 
                     if ssrc.is_empty() {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     rtp_params.ssrc = ssrc;
                 }
                 "mode" => {
-                    let modes = value.ok_or(HeaderParseError)?;
+                    let modes = value.ok_or_else(HeaderParseError::new)?;
                     let modes = match (modes.starts_with('"'), modes.ends_with('"')) {
                         (true, true) if modes.len() > 1 => &modes[1..(modes.len() - 1)],
                         (false, false) => &modes,
-                        _ => return Err(HeaderParseError),
+                        _ => return Err(HeaderParseError::new()),
                     };
                     let modes = modes
                         .split(',')
@@ -236,18 +236,18 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                         .collect::<Vec<_>>();
 
                     if modes.is_empty() {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     rtp_params.mode = modes;
                 }
                 "dest_addr" | "src_addr" => {
                     let addrs = value
-                        .ok_or(HeaderParseError)?
+                        .ok_or_else(HeaderParseError::new)?
                         .split('/')
                         .map(|s| {
                             if !s.starts_with('"') || !s.ends_with('"') {
-                                return Err(HeaderParseError);
+                                return Err(HeaderParseError::new());
                             }
 
                             // Unescape quoted string
@@ -257,7 +257,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                             while !s.is_empty() {
                                 if s.starts_with(b"\\") {
                                     if s.len() < 2 {
-                                        return Err(HeaderParseError);
+                                        return Err(HeaderParseError::new());
                                     }
                                     res.push(s[1]);
                                     s = &s[2..];
@@ -273,7 +273,7 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                         .collect::<Result<Vec<_>, _>>()?;
 
                     if addrs.is_empty() {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     if name == "src_addr" {
@@ -283,17 +283,17 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     }
                 }
                 "port" | "server_port" | "client_port" => {
-                    let ports = value.ok_or(HeaderParseError)?;
+                    let ports = value.ok_or_else(HeaderParseError::new)?;
                     let mut ports = ports.splitn(2, '-');
 
                     let port_start = ports
                         .next()
                         .and_then(|s| s.parse::<u16>().ok())
-                        .ok_or(HeaderParseError)?;
+                        .ok_or_else(HeaderParseError::new)?;
 
                     let port_end = ports
                         .next()
-                        .map(|s| s.parse::<u16>().map_err(|_| HeaderParseError))
+                        .map(|s| s.parse::<u16>().map_err(|_| HeaderParseError::new()))
                         .transpose()?;
 
                     if name == "port" {
@@ -305,10 +305,10 @@ impl TryFrom<TransportParameters> for RtpTransportParameters {
                     }
                 }
                 "destination" => {
-                    rtp_params.destination = Some(value.ok_or(HeaderParseError)?);
+                    rtp_params.destination = Some(value.ok_or_else(HeaderParseError::new)?);
                 }
                 "source" => {
-                    rtp_params.source = Some(value.ok_or(HeaderParseError)?);
+                    rtp_params.source = Some(value.ok_or_else(HeaderParseError::new)?);
                 }
                 "append" => {
                     rtp_params.append = true;
@@ -598,6 +598,9 @@ mod parser {
 }
 
 impl super::TypedHeader for Transports {
+    fn header_name() -> Option<HeaderName> {
+        Some(TRANSPORT.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -607,7 +610,7 @@ impl super::TypedHeader for Transports {
         };
 
         let (_rem, transport) =
-            parser::transports(header.as_str().as_bytes()).map_err(|_| HeaderParseError)?;
+            parser::transports(header.as_str().as_bytes()).map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(transport.into()))
     }

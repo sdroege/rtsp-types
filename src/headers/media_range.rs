@@ -73,6 +73,9 @@ impl MediaRangeBuilder {
 }
 
 impl super::TypedHeader for MediaRange {
+    fn header_name() -> Option<HeaderName> {
+        Some(MEDIA_RANGE.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 

@@ -47,6 +47,9 @@ impl From<String> for Session {
 }
 
 impl super::TypedHeader for Session {
+    fn header_name() -> Option<HeaderName> {
+        Some(SESSION.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -57,13 +60,13 @@ impl super::TypedHeader for Session {
 
         let mut iter = header.as_str().split(';');
 
-        let session_id = iter.next().ok_or(HeaderParseError)?.trim();
+        let session_id = iter.next().ok_or_else(HeaderParseError::new)?.trim();
         let timeout = iter
             .map(str::trim)
             .find_map(|s| s.strip_prefix("timeout="))
             .map(|s| s.parse::<u64>())
             .transpose()
-            .map_err(|_| HeaderParseError)?;
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(Session(session_id.into(), timeout)))
     }

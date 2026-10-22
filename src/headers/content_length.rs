@@ -49,6 +49,9 @@ impl From<ContentLength> for u64 {
 }
 
 impl super::TypedHeader for ContentLength {
+    fn header_name() -> Option<HeaderName> {
+        Some(CONTENT_LENGTH.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -59,7 +62,7 @@ impl super::TypedHeader for ContentLength {
 
         let length = parse_digits::<u64>(header.as_str())
             .map(ContentLength)
-            .map_err(|_| HeaderParseError)?;
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(length))
     }

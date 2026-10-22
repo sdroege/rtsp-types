@@ -50,6 +50,9 @@ impl std::str::FromStr for SeekStyle {
 }
 
 impl super::TypedHeader for SeekStyle {
+    fn header_name() -> Option<HeaderName> {
+        Some(SEEK_STYLE.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -58,7 +61,10 @@ impl super::TypedHeader for SeekStyle {
             Some(header) => header,
         };
 
-        let seek_style = header.as_str().parse().map_err(|_| HeaderParseError)?;
+        let seek_style = header
+            .as_str()
+            .parse()
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(seek_style))
     }

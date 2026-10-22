@@ -20,6 +20,9 @@ pub struct ContentType {
 }
 
 impl super::TypedHeader for ContentType {
+    fn header_name() -> Option<HeaderName> {
+        Some(CONTENT_TYPE.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -43,7 +46,7 @@ impl super::TypedHeader for ContentType {
                 for param in split_unquoted(params_string, b';') {
                     let param = param.trim();
                     if param.is_empty() {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     let (param_name, param_value) = match param.split_once('=') {
@@ -53,7 +56,7 @@ impl super::TypedHeader for ContentType {
 
                     let param_name = param_name.trim();
                     if param_name.is_empty() || param_name.bytes().any(|b| !is_token_char(b)) {
-                        return Err(HeaderParseError);
+                        return Err(HeaderParseError::new());
                     }
 
                     let param_value = match param_value {
@@ -64,7 +67,7 @@ impl super::TypedHeader for ContentType {
                         Some(value) => {
                             let value = value.trim();
                             if value.is_empty() || value.bytes().any(|b| !is_token_char(b)) {
-                                return Err(HeaderParseError);
+                                return Err(HeaderParseError::new());
                             }
                             Some(String::from(value))
                         }
@@ -77,8 +80,10 @@ impl super::TypedHeader for ContentType {
             }
         };
 
-        let (media_type, media_subtype) = media_type.split_once('/').ok_or(HeaderParseError)?;
-        let media_type = media_type.parse().map_err(|_| HeaderParseError)?;
+        let (media_type, media_subtype) = media_type
+            .split_once('/')
+            .ok_or_else(HeaderParseError::new)?;
+        let media_type = media_type.parse().map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(ContentType {
             media_type,

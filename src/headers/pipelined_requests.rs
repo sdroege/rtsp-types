@@ -49,6 +49,9 @@ impl From<PipelinedRequests> for u32 {
 }
 
 impl super::TypedHeader for PipelinedRequests {
+    fn header_name() -> Option<HeaderName> {
+        Some(PIPELINED_REQUESTS.clone())
+    }
     fn from_headers(headers: impl AsRef<Headers>) -> Result<Option<Self>, HeaderParseError> {
         let headers = headers.as_ref();
 
@@ -59,7 +62,7 @@ impl super::TypedHeader for PipelinedRequests {
 
         let pipelined_requests = parse_digits::<u32>(header.as_str())
             .map(PipelinedRequests)
-            .map_err(|_| HeaderParseError)?;
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(pipelined_requests))
     }

@@ -13,6 +13,7 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 - Model the `layers`, `setup`, `connection` and `MIKEY` `Transport` parameters.
 
 ### Changed
+- Replace `nom` with `winnow` for parsing.
 - `HeaderName` now hashes case-insensitively, consistent with its equality.
 - `HeaderName` values are now validated as RFC 7826 tokens.
 - Empty list headers are no longer serialized.

@@ -152,87 +152,87 @@ impl MediaPropertiesBuilder {
 pub(super) mod parser {
     use super::*;
 
-    use super::parser_helpers::{cond_parser, quoted_string, rtsp_unreserved, token, trim};
-    use nom::branch::alt;
-    use nom::bytes::complete::tag;
-    use nom::combinator::{all_consuming, map_res};
-    use nom::multi::separated_list1;
-    use nom::sequence::tuple;
-    use nom::{Err, IResult};
+    use super::parser_helpers::{
+        backtrack, cond_parser, quoted_string, rtsp_unreserved, token, trim,
+    };
     use std::str;
+    use winnow::combinator::{alt, eof, separated};
+    use winnow::token::literal;
+    use winnow::ModalResult;
+    use winnow::Parser;
 
-    fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
+    fn param<'i>(input: &mut &'i [u8]) -> ModalResult<(&'i str, Option<&'i str>)> {
         if input.is_empty() {
-            return Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Eof,
-            )));
+            return Err(backtrack(input));
         }
 
-        tuple((
-            trim(map_res(token, str::from_utf8)),
+        (
+            trim(token).try_map(str::from_utf8),
             cond_parser(
-                tag(b"="),
-                trim(map_res(
-                    alt((quoted_string, rtsp_unreserved)),
-                    str::from_utf8,
-                )),
+                literal(b"="),
+                trim(alt((quoted_string, rtsp_unreserved)).try_map(str::from_utf8)),
             ),
-        ))(input)
+        )
+            .parse_next(input)
     }
 
-    fn media_property(input: &[u8]) -> IResult<&[u8], MediaProperty> {
-        map_res(param, |p| -> Result<_, HeaderParseError> {
-            match p {
-                ("Random-Access", None) => Ok(MediaProperty::RandomAccess(None)),
-                ("Random-Access", Some(dur)) => {
-                    let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
-                    Ok(MediaProperty::RandomAccess(Some(dur)))
-                }
-                ("Beginning-Only", None) => Ok(MediaProperty::BeginningOnly),
-                ("No-Seeking", None) => Ok(MediaProperty::NoSeeking),
-                ("Immutable", None) => Ok(MediaProperty::Immutable),
-                ("Dynamic", None) => Ok(MediaProperty::Dynamic),
-                ("Time-Progressing", None) => Ok(MediaProperty::TimeProgressing),
-                ("Unlimited", None) => Ok(MediaProperty::Unlimited),
-                ("Time-Limited", Some(time)) => {
-                    let time = time.parse().map_err(|_| HeaderParseError::new())?;
-                    Ok(MediaProperty::TimeLimited(time))
-                }
-                ("Time-Duration", Some(dur)) => {
-                    let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
-                    Ok(MediaProperty::TimeDuration(dur))
-                }
-                ("Scales", Some(scales)) => {
-                    if !scales.starts_with('"') || !scales.ends_with('"') {
-                        return Err(HeaderParseError::new());
+    fn media_property(input: &mut &[u8]) -> ModalResult<MediaProperty> {
+        param
+            .try_map(|p| -> Result<_, HeaderParseError> {
+                match p {
+                    ("Random-Access", None) => Ok(MediaProperty::RandomAccess(None)),
+                    ("Random-Access", Some(dur)) => {
+                        let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
+                        Ok(MediaProperty::RandomAccess(Some(dur)))
                     }
-
-                    let mut s = Vec::new();
-                    for scale in scales[1..(scales.len() - 1)].split(',') {
-                        let scale = scale.trim();
-                        if let Some((a, b)) = scale.split_once(':') {
-                            let a = a.parse().map_err(|_| HeaderParseError::new())?;
-                            let b = b.parse().map_err(|_| HeaderParseError::new())?;
-                            s.push(ScaleRange::Range(a, b));
-                        } else {
-                            let a = scale.parse().map_err(|_| HeaderParseError::new())?;
-                            s.push(ScaleRange::Scale(a));
+                    ("Beginning-Only", None) => Ok(MediaProperty::BeginningOnly),
+                    ("No-Seeking", None) => Ok(MediaProperty::NoSeeking),
+                    ("Immutable", None) => Ok(MediaProperty::Immutable),
+                    ("Dynamic", None) => Ok(MediaProperty::Dynamic),
+                    ("Time-Progressing", None) => Ok(MediaProperty::TimeProgressing),
+                    ("Unlimited", None) => Ok(MediaProperty::Unlimited),
+                    ("Time-Limited", Some(time)) => {
+                        let time = time.parse().map_err(|_| HeaderParseError::new())?;
+                        Ok(MediaProperty::TimeLimited(time))
+                    }
+                    ("Time-Duration", Some(dur)) => {
+                        let dur = dur.parse().map_err(|_| HeaderParseError::new())?;
+                        Ok(MediaProperty::TimeDuration(dur))
+                    }
+                    ("Scales", Some(scales)) => {
+                        if !scales.starts_with('"') || !scales.ends_with('"') {
+                            return Err(HeaderParseError::new());
                         }
-                    }
 
-                    Ok(MediaProperty::Scales(s))
+                        let mut s = Vec::new();
+                        for scale in scales[1..(scales.len() - 1)].split(',') {
+                            let scale = scale.trim();
+                            if let Some((a, b)) = scale.split_once(':') {
+                                let a = a.parse().map_err(|_| HeaderParseError::new())?;
+                                let b = b.parse().map_err(|_| HeaderParseError::new())?;
+                                s.push(ScaleRange::Range(a, b));
+                            } else {
+                                let a = scale.parse().map_err(|_| HeaderParseError::new())?;
+                                s.push(ScaleRange::Scale(a));
+                            }
+                        }
+
+                        Ok(MediaProperty::Scales(s))
+                    }
+                    (key, value) => Ok(MediaProperty::Extension(
+                        key.into(),
+                        value.map(String::from),
+                    )),
                 }
-                (key, value) => Ok(MediaProperty::Extension(
-                    key.into(),
-                    value.map(String::from),
-                )),
-            }
-        })(input)
+            })
+            .parse_next(input)
     }
 
-    pub(crate) fn media_properties(input: &[u8]) -> IResult<&[u8], Vec<MediaProperty>> {
-        all_consuming(separated_list1(tag(","), media_property))(input)
+    pub(crate) fn media_properties(input: &mut &[u8]) -> ModalResult<Vec<MediaProperty>> {
+        let properties = separated(1.., media_property, literal(b",")).parse_next(input)?;
+        eof(input)?;
+
+        Ok(properties)
     }
 }
 
@@ -248,7 +248,7 @@ impl super::TypedHeader for MediaProperties {
             Some(header) => header,
         };
 
-        let (_rem, properties) = parser::media_properties(header.as_str().as_bytes())
+        let properties = parser::media_properties(&mut header.as_str().as_bytes())
             .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(properties.into()))

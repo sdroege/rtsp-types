@@ -560,14 +560,13 @@ pub struct TransportParameters(pub BTreeMap<String, Option<String>>);
 mod parser {
     use super::*;
 
-    use super::parser_helpers::{cond_parser, rtsp_unreserved, token, trim};
-    use nom::branch::alt;
-    use nom::bytes::complete::{tag, take_while};
-    use nom::combinator::{all_consuming, map_res};
-    use nom::multi::{many0, separated_list1};
-    use nom::sequence::{preceded, tuple};
-    use nom::{Err, IResult, Needed};
+    use super::parser_helpers::{backtrack, cond_parser, rtsp_unreserved, token, trim};
     use std::str;
+    use winnow::combinator::{alt, eof, preceded, repeat, separated};
+    use winnow::error::{ContextError, ErrMode, ParserError};
+    use winnow::token::{literal, take_while};
+    use winnow::ModalResult;
+    use winnow::Parser;
 
     // Check for `"[spaces]/[spaces]"` and return how much to skip
     fn is_address_list_separator(i: &[u8]) -> Option<usize> {
@@ -598,14 +597,9 @@ mod parser {
         }
     }
 
-    fn quoted_string_or_address_list(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        use std::num::NonZeroUsize;
-
+    fn quoted_string_or_address_list<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
         if !input.starts_with(b"\"") {
-            return Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Tag,
-            )));
+            return Err(backtrack(input));
         }
 
         let i = &input[1..];
@@ -616,7 +610,8 @@ mod parser {
             if o.len() >= 2 && o.starts_with(b"\\") {
                 o = &o[2..];
             } else if o.starts_with(b"\\") {
-                return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+                // Trailing backslash, the string can never be closed here.
+                return Err(backtrack(input));
             } else if !o.starts_with(b"\"") {
                 o = &o[1..];
             } else if let Some(skip) = is_address_list_separator(o) {
@@ -630,56 +625,58 @@ mod parser {
             }
         }
 
-        let (fst, snd) = input.split_at(input.len() - o.len());
         // The input did not contain the closing quote, e.g. it ended in an escaped
-        // quote.
+        // quote. Header parsing operates on complete input, so this is just an
+        // error and not a request for more data.
         if !closed {
-            return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+            return Err(backtrack(input));
         }
 
+        let (fst, snd) = input.split_at(input.len() - o.len());
         // Must have the starting quote
         assert!(fst.starts_with(b"\""));
 
-        Ok((snd, fst))
+        *input = snd;
+
+        Ok(fst)
     }
 
     // MIKEY carries base64 data, which may contain '/' characters and
     // trailing '=' padding that are not rtsp-unreserved characters.
-    fn mikey_value(input: &[u8]) -> IResult<&[u8], &[u8]> {
-        take_while(|b: u8| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=')(input)
+    fn mikey_value<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
+        take_while(0.., |b: u8| {
+            b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'='
+        })
+        .parse_next(input)
     }
 
-    fn parameter(input: &[u8]) -> IResult<&[u8], (&str, Option<&str>)> {
+    fn parameter<'i>(input: &mut &'i [u8]) -> ModalResult<(&'i str, Option<&'i str>)> {
         if input.is_empty() {
-            return Err(Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Eof,
-            )));
+            return Err(backtrack(input));
         }
 
-        let (input, name) = trim(map_res(token, str::from_utf8))(input)?;
+        let name = trim(token).try_map(str::from_utf8).parse_next(input)?;
 
-        type ValueParser = fn(&[u8]) -> IResult<&[u8], &[u8]>;
+        type ValueParser<'i> = fn(&mut &'i [u8]) -> ModalResult<&'i [u8]>;
 
-        let value_parser: ValueParser = if name == "MIKEY" {
+        let value_parser: ValueParser<'_> = if name == "MIKEY" {
             mikey_value
         } else {
             rtsp_unreserved
         };
 
-        let (input, value) = cond_parser(
-            tag(b"="),
-            trim(map_res(
-                alt((quoted_string_or_address_list, value_parser)),
-                str::from_utf8,
-            )),
-        )(input)?;
+        let value = cond_parser(
+            literal(b"="),
+            trim(alt((quoted_string_or_address_list, value_parser)).try_map(str::from_utf8)),
+        )
+        .parse_next(input)?;
 
-        Ok((input, (name, value)))
+        Ok((name, value))
     }
 
-    fn parameters(input: &[u8]) -> IResult<&[u8], TransportParameters> {
-        let (input, params) = many0(preceded(trim(tag(b";")), parameter))(input)?;
+    fn parameters(input: &mut &[u8]) -> ModalResult<TransportParameters> {
+        let params: Vec<(&str, Option<&str>)> =
+            repeat(0.., preceded(trim(literal(b";")), parameter)).parse_next(input)?;
 
         // A parameter shall appear at most once within one transport-spec;
         // duplicates with identical values are tolerated, conflicting ones
@@ -689,10 +686,7 @@ mod parser {
             let value = value.map(String::from);
             match map.get(name) {
                 Some(previous) if *previous != value => {
-                    return Err(Err::Failure(nom::error::Error::new(
-                        input,
-                        nom::error::ErrorKind::MapRes,
-                    )));
+                    return Err(ErrMode::Cut(ContextError::from_input(&*input)));
                 }
                 Some(_) => (),
                 None => {
@@ -701,16 +695,16 @@ mod parser {
             }
         }
 
-        Ok((input, TransportParameters(map)))
+        Ok(TransportParameters(map))
     }
 
-    fn spec(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
-        separated_list1(tag(b"/"), map_res(trim(token), str::from_utf8))(input)
+    fn spec<'i>(input: &mut &'i [u8]) -> ModalResult<Vec<&'i str>> {
+        separated(1.., trim(token).try_map(str::from_utf8), literal(b"/")).parse_next(input)
     }
 
-    fn transport(input: &[u8]) -> IResult<&[u8], Transport> {
-        map_res(tuple((spec, parameters)), |(spec, params)| {
-            match spec.as_slice() {
+    fn transport(input: &mut &[u8]) -> ModalResult<Transport> {
+        (spec, parameters)
+            .try_map(|(spec, params)| match spec.as_slice() {
                 ["RTP", profile, lower_transport] => {
                     let profile = RtpProfile::from(*profile);
                     let lower_transport = Some(RtpLowerTransport::from(*lower_transport));
@@ -739,12 +733,15 @@ mod parser {
                     spec: other.join("/"),
                     params,
                 })),
-            }
-        })(input)
+            })
+            .parse_next(input)
     }
 
-    pub(super) fn transports(input: &[u8]) -> IResult<&[u8], Vec<Transport>> {
-        all_consuming(separated_list1(tag(b","), transport))(input)
+    pub(super) fn transports(input: &mut &[u8]) -> ModalResult<Vec<Transport>> {
+        let transports = separated(1.., transport, literal(b",")).parse_next(input)?;
+        eof(input)?;
+
+        Ok(transports)
     }
 }
 
@@ -760,8 +757,8 @@ impl super::TypedHeader for Transports {
             Some(header) => header,
         };
 
-        let (_rem, transport) =
-            parser::transports(header.as_str().as_bytes()).map_err(|_| HeaderParseError::new())?;
+        let mut input = header.as_str().as_bytes();
+        let transport = parser::transports(&mut input).map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(transport.into()))
     }

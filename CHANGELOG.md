@@ -7,6 +7,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 
 ## [Unreleased]
 
+## [0.2.0]- 2026-11-12
+
 ### Added
 - Derive `PartialEq` for list header types.
 - Implement `PartialEq` and `Eq` for `AcceptRanges` and `MediaRange`.
@@ -109,7 +111,8 @@ specifically the [variant used by Rust](http://doc.crates.io/manifest.html#the-v
 ## 0.0.1 - 2020-11-13
 - Initial release of the `rtsp-types` crate.
 
-[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.1.3...HEAD
+[Unreleased]: https://github.com/sdroege/rtsp-types/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/sdroege/rtsp-types/compare/0.1.3...0.2.0
 [0.1.3]: https://github.com/sdroege/rtsp-types/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/sdroege/rtsp-types/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/sdroege/rtsp-types/compare/0.1.0...0.1.1

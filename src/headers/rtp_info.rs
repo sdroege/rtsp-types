@@ -59,25 +59,24 @@ pub mod v1 {
     pub(super) mod parser {
         use super::*;
 
-        use super::parser_helpers::trim;
-        use crate::nom_extensions::separated_list1_fold;
-        use nom::bytes::complete::{tag, take_while};
-        use nom::combinator::{all_consuming, map_parser, map_res};
-        use nom::multi::separated_list1;
-        use nom::sequence::separated_pair;
-        use nom::IResult;
+        use super::parser_helpers::{backtrack, trim};
         use std::str;
+        use winnow::combinator::{eof, separated, separated_pair};
+        use winnow::token::{literal, take_while};
+        use winnow::ModalResult;
+        use winnow::Parser;
 
-        fn param(input: &[u8]) -> IResult<&[u8], (&str, &str)> {
+        fn param<'i>(input: &mut &'i [u8]) -> ModalResult<(&'i str, &'i str)> {
             separated_pair(
-                trim(map_res(take_while(|b| b != b'='), str::from_utf8)),
-                tag("="),
-                trim(map_res(take_while(|b| b != b';'), str::from_utf8)),
-            )(input)
+                trim(take_while(0.., |b: u8| b != b'=')).try_map(str::from_utf8),
+                literal(b"="),
+                trim(take_while(0.., |b: u8| b != b';')).try_map(str::from_utf8),
+            )
+            .parse_next(input)
         }
 
-        fn rtp_info(input: &[u8]) -> IResult<&[u8], RtpInfo> {
-            #[derive(Clone, Default)]
+        fn rtp_info(input: &mut &[u8]) -> ModalResult<RtpInfo> {
+            #[derive(Default)]
             #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
             struct Info<'a> {
                 uri: Option<&'a str>,
@@ -85,51 +84,63 @@ pub mod v1 {
                 rtptime: Option<&'a str>,
             }
 
-            map_res(
-                separated_list1_fold(tag(b";"), param, Info::default(), |mut acc, param| {
-                    match param.0 {
-                        "url" => acc.uri = Some(param.1),
-                        "seq" => acc.seq = Some(param.1),
-                        "rtptime" => acc.rtptime = Some(param.1),
-                        _ => (),
-                    }
+            let params: Vec<(&str, &str)> =
+                separated(1.., param, literal(b";")).parse_next(input)?;
 
-                    acc
-                }),
-                |info| -> Result<_, HeaderParseError> {
-                    // Accept quoted URLs as well (seen in the wild).
-                    let uri = info
-                        .uri
-                        .and_then(|uri| {
-                            let uri = uri
-                                .strip_prefix('"')
-                                .and_then(|uri| uri.strip_suffix('"'))
-                                .unwrap_or(uri);
-                            url::Url::parse(uri).ok()
-                        })
-                        .ok_or_else(HeaderParseError::new)?;
-                    let seq = info
-                        .seq
-                        .map(|s| s.parse::<u16>())
-                        .transpose()
-                        .map_err(|_| HeaderParseError::new())?;
+            let mut acc = Info::default();
+            for (name, value) in params {
+                match name {
+                    "url" => acc.uri = Some(value),
+                    "seq" => acc.seq = Some(value),
+                    "rtptime" => acc.rtptime = Some(value),
+                    _ => (),
+                }
+            }
 
-                    let rtptime = info
-                        .rtptime
-                        .map(|s| s.parse::<u32>())
-                        .transpose()
-                        .map_err(|_| HeaderParseError::new())?;
+            let info = (|| -> Result<_, HeaderParseError> {
+                // Accept quoted URLs as well (seen in the wild).
+                let uri = acc
+                    .uri
+                    .and_then(|uri| {
+                        let uri = uri
+                            .strip_prefix('"')
+                            .and_then(|uri| uri.strip_suffix('"'))
+                            .unwrap_or(uri);
+                        url::Url::parse(uri).ok()
+                    })
+                    .ok_or_else(HeaderParseError::new)?;
+                let seq = acc
+                    .seq
+                    .map(|s| s.parse::<u16>())
+                    .transpose()
+                    .map_err(|_| HeaderParseError::new())?;
 
-                    Ok(RtpInfo { uri, seq, rtptime })
-                },
-            )(input)
+                let rtptime = acc
+                    .rtptime
+                    .map(|s| s.parse::<u32>())
+                    .transpose()
+                    .map_err(|_| HeaderParseError::new())?;
+
+                Ok(RtpInfo { uri, seq, rtptime })
+            })()
+            .map_err(|_| backtrack(input))?;
+
+            Ok(info)
         }
 
-        pub(crate) fn rtp_infos(input: &[u8]) -> IResult<&[u8], Vec<RtpInfo>> {
-            all_consuming(separated_list1(
-                tag(","),
-                map_parser(take_while(|b| b != b','), rtp_info),
-            ))(input)
+        fn element(input: &mut &[u8]) -> ModalResult<RtpInfo> {
+            // Parse each list element only up to the next ',' so that the
+            // value parsers cannot consume past the element boundary.
+            let segment = take_while(0.., |b: u8| b != b',').parse_next(input)?;
+
+            rtp_info(&mut &segment[..])
+        }
+
+        pub(crate) fn rtp_infos(input: &mut &[u8]) -> ModalResult<Vec<RtpInfo>> {
+            let infos = separated(1.., element, literal(b",")).parse_next(input)?;
+            eof(input)?;
+
+            Ok(infos)
         }
     }
 }
@@ -167,79 +178,64 @@ pub mod v2 {
     pub(super) mod parser {
         use super::*;
 
-        use super::parser_helpers::{cond_parser, parse_quoted_string, quoted_string, token, trim};
-        use crate::nom_extensions::separated_list1_fold;
-        use nom::branch::alt;
-        use nom::bytes::complete::{tag, take};
-        use nom::combinator::{all_consuming, map, map_res};
-        use nom::multi::{many1, separated_list1};
-        use nom::sequence::tuple;
-        use nom::{Err, IResult};
+        use super::parser_helpers::{
+            backtrack, cond_parser, parse_quoted_string, quoted_string, token, trim,
+        };
         use std::str;
+        use winnow::combinator::{alt, eof, repeat, separated};
+        use winnow::token::{literal, take};
+        use winnow::ModalResult;
+        use winnow::Parser;
 
-        fn param_value(input: &[u8]) -> IResult<&[u8], String> {
-            let (input, value) = alt((quoted_string, token))(input)?;
-            let value = str::from_utf8(value).map_err(|_| {
-                Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
-            })?;
+        fn param_value(input: &mut &[u8]) -> ModalResult<String> {
+            let value = alt((quoted_string, token)).parse_next(input)?;
+            let value = str::from_utf8(value).map_err(|_| backtrack(input))?;
 
             if value.starts_with('"') {
-                let value = parse_quoted_string(value).map_err(|_| {
-                    Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
-                })?;
-
-                Ok((input, value))
+                parse_quoted_string(value).map_err(|_| backtrack(input))
             } else {
-                Ok((input, String::from(value)))
+                Ok(String::from(value))
             }
         }
 
-        fn param(input: &[u8]) -> IResult<&[u8], (&str, Option<String>)> {
+        fn param<'i>(input: &mut &'i [u8]) -> ModalResult<(&'i str, Option<String>)> {
             if input.is_empty() {
-                return Err(Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::Eof,
-                )));
+                return Err(backtrack(input));
             }
 
-            tuple((
-                trim(map_res(token, str::from_utf8)),
-                cond_parser(tag(b"="), trim(param_value)),
-            ))(input)
+            (
+                trim(token).try_map(str::from_utf8),
+                cond_parser(literal(b"="), trim(param_value)),
+            )
+                .parse_next(input)
         }
 
-        fn ssrc_info(input: &[u8]) -> IResult<&[u8], SsrcInfo> {
-            map_res(
-                tuple((
-                    trim(tag(b"ssrc")),
-                    trim(tag(b"=")),
-                    map_res(map_res(take(8usize), str::from_utf8), |s| {
-                        u32::from_str_radix(s, 16)
-                    }),
-                    cond_parser(
-                        trim(tag(b":")),
-                        separated_list1_fold(
-                            tag(b";"),
-                            param,
-                            BTreeMap::new(),
-                            |mut acc, param| {
-                                acc.insert(String::from(param.0), param.1);
+        fn param_list<'i>(input: &mut &'i [u8]) -> ModalResult<Vec<(&'i str, Option<String>)>> {
+            separated(1.., param, literal(b";")).parse_next(input)
+        }
 
-                                acc
-                            },
-                        ),
-                    ),
-                )),
-                |(_, _, ssrc, params)| -> Result<_, HeaderParseError> {
-                    let mut params = params.unwrap_or_default();
+        fn ssrc_info(input: &mut &[u8]) -> ModalResult<SsrcInfo> {
+            let ssrc_info = (
+                trim(literal(b"ssrc")),
+                trim(literal(b"=")),
+                take(8usize)
+                    .try_map(str::from_utf8)
+                    .try_map(|s| u32::from_str_radix(s, 16)),
+                cond_parser(trim(literal(b":")), param_list),
+            )
+                .try_map(|(_, _, ssrc, params)| -> Result<_, HeaderParseError> {
+                    let mut others: BTreeMap<String, Option<String>> = BTreeMap::new();
+                    for (name, value) in params.unwrap_or_default() {
+                        others.insert(String::from(name), value);
+                    }
 
-                    let seq = if let Some((_, Some(seq))) = params.remove_entry("seq") {
+                    let seq = if let Some((_, Some(seq))) = others.remove_entry("seq") {
                         Some(seq.parse::<u16>().map_err(|_| HeaderParseError::new())?)
                     } else {
                         None
                     };
 
-                    let rtptime = if let Some((_, Some(rtptime))) = params.remove_entry("rtptime") {
+                    let rtptime = if let Some((_, Some(rtptime))) = others.remove_entry("rtptime") {
                         Some(
                             rtptime
                                 .parse::<u32>()
@@ -253,39 +249,40 @@ pub mod v2 {
                         ssrc,
                         seq,
                         rtptime,
-                        others: params,
+                        others,
                     })
-                },
-            )(input)
+                })
+                .parse_next(input)?;
+
+            Ok(ssrc_info)
         }
 
-        fn parse_url(input: &[u8]) -> IResult<&[u8], url::Url> {
-            fn error(input: &[u8]) -> Err<nom::error::Error<&[u8]>> {
-                Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::MapRes))
-            }
+        fn parse_url(input: &mut &[u8]) -> ModalResult<url::Url> {
+            let quoted = trim(quoted_string).parse_next(input)?;
+            let quoted = str::from_utf8(quoted).map_err(|_| backtrack(input))?;
+            let quoted = parse_quoted_string(quoted).map_err(|_| backtrack(input))?;
+            let uri = url::Url::parse(&quoted).map_err(|_| backtrack(input))?;
 
-            let (input, quoted) = trim(quoted_string)(input)?;
-            let quoted = str::from_utf8(quoted).map_err(|_| error(input))?;
-            let quoted = parse_quoted_string(quoted).map_err(|_| error(input))?;
-            let uri = url::Url::parse(&quoted).map_err(|_| error(input))?;
-
-            Ok((input, uri))
+            Ok(uri)
         }
 
-        fn rtp_info(input: &[u8]) -> IResult<&[u8], RtpInfo> {
-            map(
-                tuple((
-                    trim(tag(b"url")),
-                    trim(tag(b"=")),
-                    parse_url,
-                    many1(trim(ssrc_info)),
-                )),
-                |(_, _, uri, ssrc_infos)| RtpInfo { uri, ssrc_infos },
-            )(input)
+        fn rtp_info(input: &mut &[u8]) -> ModalResult<RtpInfo> {
+            let (_, _, uri, ssrc_infos) = (
+                trim(literal(b"url")),
+                trim(literal(b"=")),
+                parse_url,
+                repeat(1.., trim(ssrc_info)),
+            )
+                .parse_next(input)?;
+
+            Ok(RtpInfo { uri, ssrc_infos })
         }
 
-        pub(crate) fn rtp_infos(input: &[u8]) -> IResult<&[u8], Vec<RtpInfo>> {
-            all_consuming(separated_list1(tag(","), rtp_info))(input)
+        pub(crate) fn rtp_infos(input: &mut &[u8]) -> ModalResult<Vec<RtpInfo>> {
+            let infos = separated(1.., rtp_info, literal(b",")).parse_next(input)?;
+            eof(input)?;
+
+            Ok(infos)
         }
     }
 }
@@ -293,9 +290,9 @@ pub mod v2 {
 mod parser {
     use super::*;
 
-    use nom::IResult;
+    use winnow::ModalResult;
 
-    pub(super) fn rtp_infos(input: &[u8]) -> IResult<&[u8], RtpInfos> {
+    pub(super) fn rtp_infos(input: &mut &[u8]) -> ModalResult<RtpInfos> {
         fn is_v2_rtpinfo(mut i: &[u8]) -> bool {
             while i.starts_with(b" ") || i.starts_with(b"\t") {
                 i = &i[1..];
@@ -322,21 +319,39 @@ mod parser {
             i.starts_with(b"\"")
         }
 
-        if is_v2_rtpinfo(input) {
+        let start = *input;
+
+        if is_v2_rtpinfo(start) {
             match v2::parser::rtp_infos(input) {
-                Ok((rem, infos)) => Ok((rem, RtpInfos::V2(infos))),
+                Ok(infos) => Ok(RtpInfos::V2(infos)),
                 // Fall back to the other parser in case the heuristic
                 // misdetected the version.
-                Err(err) => v1::parser::rtp_infos(input)
-                    .map(|(rem, infos)| (rem, RtpInfos::V1(infos)))
-                    .or(Err(err)),
+                Err(err) => {
+                    let mut rem = start;
+                    match v1::parser::rtp_infos(&mut rem) {
+                        Ok(infos) => {
+                            *input = rem;
+
+                            Ok(RtpInfos::V1(infos))
+                        }
+                        Err(_) => Err(err),
+                    }
+                }
             }
         } else {
             match v1::parser::rtp_infos(input) {
-                Ok((rem, infos)) => Ok((rem, RtpInfos::V1(infos))),
-                Err(err) => v2::parser::rtp_infos(input)
-                    .map(|(rem, infos)| (rem, RtpInfos::V2(infos)))
-                    .or(Err(err)),
+                Ok(infos) => Ok(RtpInfos::V1(infos)),
+                Err(err) => {
+                    let mut rem = start;
+                    match v2::parser::rtp_infos(&mut rem) {
+                        Ok(infos) => {
+                            *input = rem;
+
+                            Ok(RtpInfos::V2(infos))
+                        }
+                        Err(_) => Err(err),
+                    }
+                }
             }
         }
     }
@@ -354,8 +369,8 @@ impl super::TypedHeader for RtpInfos {
             Some(header) => header,
         };
 
-        let (_rem, rtp_info) =
-            parser::rtp_infos(header.as_str().as_bytes()).map_err(|_| HeaderParseError::new())?;
+        let rtp_info = parser::rtp_infos(&mut header.as_str().as_bytes())
+            .map_err(|_| HeaderParseError::new())?;
 
         Ok(Some(rtp_info))
     }
@@ -688,7 +703,7 @@ mod tests {
 
         let infos = response.typed_header::<super::RtpInfos>().unwrap().unwrap();
 
-        let mut others = BTreeMap::new();
+        let mut others: BTreeMap<String, Option<String>> = BTreeMap::new();
         others.insert("x".to_string(), Some("a;b=c".to_string()));
         others.insert("y".to_string(), Some("p\"q".to_string()));
         others.insert("plain".to_string(), None);

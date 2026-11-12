@@ -5,7 +5,9 @@
 // TODO: Consider making this public at a later time
 
 use super::headers::parser_helpers::parse_digits;
+use super::parser::error::{Input, MsgError};
 use super::*;
+use winnow::error::{ErrMode, Needed};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
@@ -27,20 +29,21 @@ impl<'a> MessageRef<'a> {
     }
 
     pub fn parse(buf: &'a [u8]) -> Result<(Self, usize), ParseError> {
-        let (remainder, res) = match parser::message(buf) {
+        let mut input = Input::new(buf);
+        let res = match parser::message(&mut input) {
             Ok(res) => res,
-            Err(nom::Err::Incomplete(needed)) => {
+            Err(ErrMode::Incomplete(needed)) => {
                 return Err(ParseError::Incomplete(match needed {
-                    nom::Needed::Size(needed_len) => Some(needed_len),
+                    Needed::Size(needed_len) => Some(needed_len),
                     _ => None,
                 }))
             }
-            Err(nom::Err::Error(err)) | Err(nom::Err::Failure(err)) => {
+            Err(ErrMode::Backtrack(err)) | Err(ErrMode::Cut(err)) => {
                 return Err(ParseError::Invalid(syntax_error(buf, &err)))
             }
         };
 
-        let consumed = buf.len() - remainder.len();
+        let consumed = buf.len() - input.into_inner().len();
 
         Ok((res, consumed))
     }
@@ -69,15 +72,15 @@ impl<'a> MessageRef<'a> {
 // Maximum length of the offending line included in a syntax error.
 const MAX_ERROR_LINE_LEN: usize = 128;
 
-fn syntax_error(buf: &[u8], err: &nom::error::Error<&[u8]>) -> ParseSyntaxError {
+fn syntax_error(buf: &[u8], err: &MsgError) -> ParseSyntaxError {
     // The parser only ever fails with a subslice of the input buffer.
-    let offset = err.input.as_ptr() as usize - buf.as_ptr() as usize;
-    debug_assert!(offset + err.input.len() <= buf.len());
+    let offset = err.input().as_ptr() as usize - buf.as_ptr() as usize;
+    debug_assert!(offset + err.input().len() <= buf.len());
 
     let line = error_line(buf, offset);
     let section = error_section(buf, offset);
 
-    ParseSyntaxError::new(section, offset, line, expected_input(err.code))
+    ParseSyntaxError::new(section, offset, line, err.expected())
 }
 
 fn error_line(buf: &[u8], offset: usize) -> String {
@@ -139,27 +142,6 @@ fn error_section(buf: &[u8], offset: usize) -> ParseSyntaxSection {
 
 fn find_crlf(input: &[u8]) -> Option<usize> {
     input.windows(2).position(|w| w == b"\r\n")
-}
-
-fn expected_input(kind: nom::error::ErrorKind) -> &'static str {
-    use nom::error::ErrorKind;
-
-    match kind {
-        ErrorKind::Tag => "literal",
-        ErrorKind::Char | ErrorKind::Satisfy => "character",
-        ErrorKind::OneOf | ErrorKind::IsA => "one of a set of characters",
-        ErrorKind::IsNot => "character outside a set of characters",
-        ErrorKind::Alpha => "alphabetic character",
-        ErrorKind::Digit => "digit",
-        ErrorKind::HexDigit => "hexadecimal digit",
-        ErrorKind::AlphaNumeric => "alphanumeric character",
-        ErrorKind::Space | ErrorKind::MultiSpace => "whitespace",
-        ErrorKind::Eof => "end of input",
-        ErrorKind::MapRes | ErrorKind::MapOpt => "valid value",
-        ErrorKind::TakeWhile1 => "non-empty matching input",
-        ErrorKind::TakeTill1 | ErrorKind::TakeUntil => "text",
-        _ => "input",
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

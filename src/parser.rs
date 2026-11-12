@@ -2,116 +2,133 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+pub(crate) mod error;
+
 use super::headers::parser_helpers::parse_digits;
-use super::nom_extensions::many0_tinyvec;
 use super::*;
-use nom::branch::alt;
-use nom::bytes::streaming::{tag, take, take_until, take_while, take_while1, take_while_m_n};
-use nom::character::streaming::{char, one_of};
-use nom::character::{is_alphanumeric, is_digit, is_space};
-use nom::combinator::{flat_map, map, map_res, opt, value};
-use nom::multi::fold_many0;
-use nom::number::streaming::be_u16;
-use nom::sequence::{terminated, tuple};
-use nom::{Err, IResult, Needed};
+use crate::parser::error::{
+    Error, Input, MsgError, Result, EXPECTED_CHARACTER, EXPECTED_LITERAL, EXPECTED_NON_EMPTY,
+    EXPECTED_ONE_OF, EXPECTED_VALUE,
+};
 use std::str;
 use tinyvec::TinyVec;
+use winnow::ascii::space0;
+use winnow::binary::be_u16;
+use winnow::combinator::{alt, cut_err, repeat, terminated};
+use winnow::error::{ErrMode, Needed};
+use winnow::token::{any, literal, one_of, take, take_until, take_while};
+use winnow::Parser;
 
 fn is_token_char(i: u8) -> bool {
-    is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+    i.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&i)
 }
 
-fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(is_token_char)(input)
+fn token<'i>(input: &mut Input<'i>) -> Result<'i, &'i [u8]> {
+    take_while(0.., is_token_char).parse_next(input)
 }
 
-fn token_1(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while1(is_token_char)(input)
+fn token_1<'i>(input: &mut Input<'i>) -> Result<'i, &'i [u8]> {
+    take_while(1.., is_token_char)
+        .context(EXPECTED_NON_EMPTY)
+        .parse_next(input)
+}
+
+// Converts a parsed byte slice into a string
+fn utf8<'i>(bytes: &'i [u8]) -> Result<'i, &'i str> {
+    str::from_utf8(bytes).map_err(|_| ErrMode::Backtrack(MsgError::at(bytes, EXPECTED_VALUE)))
 }
 
 // Matches and consumes one space
-fn sp(input: &[u8]) -> IResult<&[u8], ()> {
-    value((), char(' '))(input)
+fn sp<'i>(input: &mut Input<'i>) -> Result<'i, ()> {
+    literal(b' ')
+        .context(EXPECTED_CHARACTER)
+        .void()
+        .parse_next(input)
 }
 
 // Matches and consumes a CRLF
-fn crlf(input: &[u8]) -> IResult<&[u8], ()> {
-    value((), tag("\r\n"))(input)
-}
-
-// Matches a run of printable ASCII characters
-fn vchar_1(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    fn is_vchar(i: u8) -> bool {
-        i > 32 && i <= 126
-    }
-
-    take_while1(is_vchar)(input)
+fn crlf<'i>(input: &mut Input<'i>) -> Result<'i, ()> {
+    literal(b"\r\n")
+        .context(EXPECTED_LITERAL)
+        .void()
+        .parse_next(input)
 }
 
 // Parses an RTSP version, only accepts 1.0 and 2.0
-fn rtsp_version(input: &[u8]) -> IResult<&[u8], Version> {
-    map(
-        tuple((tag("RTSP/"), one_of("12"), tag(".0"))),
-        |(_, major, _)| {
-            if major == '2' {
+fn rtsp_version<'i>(input: &mut Input<'i>) -> Result<'i, Version> {
+    (
+        literal(b"RTSP/").context(EXPECTED_LITERAL),
+        one_of(b"12").context(EXPECTED_ONE_OF),
+        literal(b".0").context(EXPECTED_LITERAL),
+    )
+        .map(|(_, major, _)| {
+            if major == b'2' {
                 Version::V2_0
             } else {
                 Version::V1_0
             }
-        },
-    )(input)
+        })
+        .parse_next(input)
 }
 
-fn request_line(input: &[u8]) -> IResult<&[u8], RequestLine<'_>> {
-    map(
-        tuple((
-            map(map_res(token_1, str::from_utf8), MethodRef::from),
-            sp,
-            alt((
-                value(None, char('*')),
-                map(map_res(vchar_1, str::from_utf8), Some),
-            )),
-            sp,
-            rtsp_version,
-            crlf,
-        )),
-        |(method, _, request_uri, _, version, _)| RequestLine {
-            method,
-            request_uri,
-            version,
-        },
-    )(input)
+// Matches a run of printable ASCII characters
+fn vchar_1<'i>(input: &mut Input<'i>) -> Result<'i, &'i [u8]> {
+    take_while(1.., |i: u8| i > 32 && i <= 126)
+        .context(EXPECTED_NON_EMPTY)
+        .parse_next(input)
 }
 
-fn from_digit(input: &str) -> Result<u16, std::num::ParseIntError> {
-    str::parse::<u16>(input)
+fn request_line<'i>(input: &mut Input<'i>) -> Result<'i, RequestLine<'i>> {
+    let method = token_1(input)?;
+    let method = MethodRef::from(utf8(method)?);
+    sp(input)?;
+    let request_uri = alt((
+        literal(b'*').context(EXPECTED_CHARACTER).map(|_| None),
+        vchar_1.map(Some),
+    ))
+    .parse_next(input)?;
+    let request_uri = request_uri.map(utf8).transpose()?;
+    sp(input)?;
+    let version = rtsp_version(input)?;
+    crlf(input)?;
+
+    Ok(RequestLine {
+        method,
+        request_uri,
+        version,
+    })
 }
 
-fn status_line(input: &[u8]) -> IResult<&[u8], StatusLine<'_>> {
-    map(
-        tuple((
-            rtsp_version,
-            sp,
-            map_res(
-                map_res(take_while_m_n(3, 3, is_digit), str::from_utf8),
-                from_digit,
-            ),
-            sp,
-            map_res(take_until(&b"\r\n"[..]), str::from_utf8),
-            crlf,
-        )),
-        |(version, _, status, _, reason_phrase, _)| StatusLine {
-            version,
-            status: status.into(),
-            reason_phrase,
-        },
-    )(input)
+fn status_code<'i>(input: &mut Input<'i>) -> Result<'i, u16> {
+    let digits = take_while(3..=3, |i: u8| i.is_ascii_digit()).parse_next(input)?;
+    let digits = utf8(digits)?;
+
+    digits
+        .parse::<u16>()
+        .map_err(|_| ErrMode::Backtrack(MsgError::at(digits.as_bytes(), EXPECTED_VALUE)))
 }
 
-fn header_value(i: &[u8]) -> IResult<&[u8], &[u8]> {
+fn status_line<'i>(input: &mut Input<'i>) -> Result<'i, StatusLine<'i>> {
+    let version = rtsp_version(input)?;
+    sp(input)?;
+    let status = status_code(input)?;
+    sp(input)?;
+    let reason_phrase = take_until(0.., &b"\r\n"[..]).parse_next(input)?;
+    let reason_phrase = utf8(reason_phrase)?;
+    crlf(input)?;
+
+    Ok(StatusLine {
+        version,
+        status: status.into(),
+        reason_phrase,
+    })
+}
+
+fn header_value<'i>(input: &mut Input<'i>) -> Result<'i, &'i [u8]> {
     // Header values can be split over multiple lines, in which case there
     // will be a CRLF followed by one or more spaces/tabs.
-    let mut o = i;
+    let start = input.into_inner();
+    let mut o = start;
     while !o.is_empty() {
         if o.len() >= 3 && o.starts_with(b"\r\n") && (o[2] == b' ' || o[2] == b'\t') {
             if let Some((no_space_pos, _)) = o
@@ -131,52 +148,47 @@ fn header_value(i: &[u8]) -> IResult<&[u8], &[u8]> {
             o = &o[1..];
         } else {
             // Not a header character
-            let (mut res, rem) = i.split_at(i.len() - o.len());
+            let (res, rem) = start.split_at(start.len() - o.len());
+            let res = res.trim_ascii();
 
-            // trim trailing and leading whitespace from header
-            // Replace with once stabilized (rust-lang/rust#94035):
-            //   res = res.trim_ascii();
-            while let [first, rest @ ..] = res {
-                if first.is_ascii_whitespace() {
-                    res = rest;
-                } else {
-                    break;
-                }
-            }
-            while let [rest @ .., last] = res {
-                if last.is_ascii_whitespace() {
-                    res = rest;
-                } else {
-                    break;
-                }
-            }
-            return Ok((rem, res));
+            *input = Input::new(rem);
+
+            return Ok(res);
         }
     }
 
-    Err(Err::Incomplete(Needed::Unknown))
+    Err(ErrMode::Incomplete(Needed::Unknown))
 }
 
-fn message_header(input: &[u8]) -> IResult<&[u8], HeaderRef<'_>> {
-    map(
-        tuple((
-            map_res(token, str::from_utf8),
-            char(':'),
-            opt(take_while(is_space)),
-            map_res(header_value, str::from_utf8),
-            crlf,
-        )),
-        |(name, _, _, value, _)| HeaderRef { name, value },
-    )(input)
+fn message_header<'i>(input: &mut Input<'i>) -> Result<'i, HeaderRef<'i>> {
+    let name = token(input)?;
+    let name = utf8(name)?;
+    literal(b':')
+        .context(EXPECTED_CHARACTER)
+        .parse_next(input)?;
+    space0(input)?;
+    let value = header_value(input)?;
+    let value = utf8(value)?;
+    crlf(input)?;
+
+    Ok(HeaderRef { name, value })
 }
 
-fn headers(input: &[u8]) -> IResult<&[u8], TinyVec<[HeaderRef<'_>; 16]>> {
-    terminated(many0_tinyvec(message_header), crlf)(input)
+fn headers<'i>(input: &mut Input<'i>) -> Result<'i, TinyVec<[HeaderRef<'i>; 16]>> {
+    terminated(
+        repeat(0.., message_header).fold(
+            TinyVec::new,
+            |mut acc: TinyVec<[HeaderRef<'i>; 16]>, h| {
+                acc.push(h);
+                acc
+            },
+        ),
+        crlf,
+    )
+    .parse_next(input)
 }
 
-fn content_length<'a>(
-    headers: &[HeaderRef<'a>],
-) -> Result<usize, nom::Err<nom::error::Error<&'a [u8]>>> {
+fn content_length<'a>(headers: &[HeaderRef<'a>]) -> core::result::Result<usize, Error<'a>> {
     let mut value = None;
 
     for h in headers
@@ -185,19 +197,15 @@ fn content_length<'a>(
     {
         // A sender MUST NOT generate multiple Content-Length header fields with
         // non-identical values, in which case the message is malformed.
-        let v = parse_digits::<usize>(h.value).map_err(|_| {
-            nom::Err::Failure(nom::error::Error::new(
-                h.value.as_bytes(),
-                nom::error::ErrorKind::MapRes,
-            ))
-        })?;
+        let v = parse_digits::<usize>(h.value)
+            .map_err(|_| ErrMode::Cut(MsgError::at(h.value.as_bytes(), EXPECTED_VALUE)))?;
 
         match value {
             None => value = Some(v),
             Some(prev) if prev != v => {
-                return Err(nom::Err::Failure(nom::error::Error::new(
+                return Err(ErrMode::Cut(MsgError::at(
                     h.value.as_bytes(),
-                    nom::error::ErrorKind::MapRes,
+                    EXPECTED_VALUE,
                 )))
             }
             Some(_) => (),
@@ -207,78 +215,64 @@ fn content_length<'a>(
     Ok(value.unwrap_or(0))
 }
 
-fn request(input: &[u8]) -> IResult<&[u8], RequestRef<'_>> {
-    let (input, request_line) = request_line(input)?;
-    let (input, headers) = headers(input)?;
+fn request<'i>(input: &mut Input<'i>) -> Result<'i, RequestRef<'i>> {
+    let request_line = request_line(input)?;
+    let headers = headers(input)?;
     let content_length = content_length(&headers)?;
-    let (input, body) = take(content_length)(input)?;
+    let body = take(content_length).parse_next(input)?;
 
-    Ok((
-        input,
-        RequestRef {
-            method: request_line.method,
-            request_uri: request_line.request_uri,
-            version: request_line.version,
-            headers,
-            body,
-        },
-    ))
+    Ok(RequestRef {
+        method: request_line.method,
+        request_uri: request_line.request_uri,
+        version: request_line.version,
+        headers,
+        body,
+    })
 }
 
-fn response(input: &[u8]) -> IResult<&[u8], ResponseRef<'_>> {
-    let (input, status_line) = status_line(input)?;
-    let (input, headers) = headers(input)?;
+fn response<'i>(input: &mut Input<'i>) -> Result<'i, ResponseRef<'i>> {
+    let status_line = status_line(input)?;
+    let headers = headers(input)?;
     let content_length = content_length(&headers)?;
-    let (input, body) = take(content_length)(input)?;
+    let body = take(content_length).parse_next(input)?;
 
-    Ok((
-        input,
-        ResponseRef {
-            version: status_line.version,
-            status: status_line.status,
-            reason_phrase: status_line.reason_phrase,
-            headers,
-            body,
-        },
-    ))
+    Ok(ResponseRef {
+        version: status_line.version,
+        status: status_line.status,
+        reason_phrase: status_line.reason_phrase,
+        headers,
+        body,
+    })
 }
 
-fn data(input: &[u8]) -> IResult<&[u8], DataRef<'_>> {
-    map(
-        tuple((char('$'), take(1usize), flat_map(be_u16, take))),
-        |(_, channel_id, body): (_, &[u8], _)| DataRef {
-            channel_id: channel_id[0],
-            body,
-        },
-    )(input)
+fn data<'i>(input: &mut Input<'i>) -> Result<'i, DataRef<'i>> {
+    (
+        literal(b'$').context(EXPECTED_CHARACTER),
+        any,
+        be_u16.flat_map(|len: u16| take(len as usize)),
+    )
+        .map(|(_, channel_id, body): (_, u8, _)| DataRef { channel_id, body })
+        .parse_next(input)
 }
 
-pub(crate) fn message(input: &[u8]) -> IResult<&[u8], MessageRef<'_>> {
-    let (input, ()) = fold_many0(crlf, || (), |(), _| ())(input)?;
+pub(crate) fn message<'i>(input: &mut Input<'i>) -> Result<'i, MessageRef<'i>> {
+    repeat(0.., crlf)
+        .fold(|| (), |(), ()| ())
+        .parse_next(input)?;
 
-    if input.is_empty() {
-        return Err(Err::Incomplete(Needed::Unknown));
+    if input.into_inner().is_empty() {
+        return Err(ErrMode::Incomplete(Needed::Unknown));
     }
 
-    // Convert backtrackable errors into irrecoverable ones. The message type
-    // is determined by the first byte(s), so errors from other message types
-    // must not replace the error from the matching one.
-    fn commit<T>(res: IResult<&[u8], T>) -> IResult<&[u8], T> {
-        res.map_err(|err| match err {
-            Err::Error(err) => Err::Failure(err),
-            err => err,
-        })
-    }
-
-    if input[0] == b'$' {
-        let (rest, data) = commit(data(input))?;
-        Ok((rest, MessageRef::Data(data)))
-    } else if input.starts_with(b"RTSP/") {
-        let (rest, response) = commit(response(input))?;
-        Ok((rest, MessageRef::Response(response)))
+    // The message type is determined by the first byte(s), so errors can
+    // never be recovered from and must not be replaced by errors from
+    // another message type.
+    if input.into_inner().starts_with(b"$") {
+        Ok(MessageRef::Data(cut_err(data).parse_next(input)?))
+    } else if input.into_inner().starts_with(b"RTSP/") {
+        Ok(MessageRef::Response(cut_err(response).parse_next(input)?))
     } else {
-        let (rest, request) = commit(request(input))?;
-        Ok((rest, MessageRef::Request(request)))
+        Ok(MessageRef::Request(cut_err(request).parse_next(input)?))
     }
 }
 
@@ -288,10 +282,22 @@ mod tests {
 
     use tinyvec::tiny_vec;
 
+    fn parse<'i, O>(
+        mut parser: impl Parser<Input<'i>, O, Error<'i>>,
+        input: &'i [u8],
+    ) -> Result<'i, (&'i [u8], O)> {
+        parser
+            .parse_peek(Input::new(input))
+            .map(|(rest, res)| (rest.into_inner(), res))
+    }
+
     #[test]
     fn test_request_line() {
         assert_eq!(
-            request_line(b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n"),
+            parse(
+                request_line,
+                b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n"
+            ),
             Ok((
                 &b""[..],
                 RequestLine {
@@ -306,7 +312,7 @@ mod tests {
     #[test]
     fn test_request_line_without_uri() {
         assert_eq!(
-            request_line(b"OPTIONS * RTSP/2.0\r\n"),
+            parse(request_line, b"OPTIONS * RTSP/2.0\r\n"),
             Ok((
                 &b""[..],
                 RequestLine {
@@ -320,18 +326,18 @@ mod tests {
 
     #[test]
     fn test_request_line_with_empty_method() {
-        assert!(request_line(b" rtsp://media.example.com RTSP/2.0\r\n").is_err());
+        assert!(parse(request_line, b" rtsp://media.example.com RTSP/2.0\r\n").is_err());
     }
 
     #[test]
     fn test_request_line_with_empty_uri() {
-        assert!(request_line(b"OPTIONS  RTSP/2.0\r\n").is_err());
+        assert!(parse(request_line, b"OPTIONS  RTSP/2.0\r\n").is_err());
     }
 
     #[test]
     fn test_status_line() {
         assert_eq!(
-            status_line(b"RTSP/2.0 200 All Good\r\n"),
+            parse(status_line, b"RTSP/2.0 200 All Good\r\n"),
             Ok((
                 &b""[..],
                 StatusLine {
@@ -346,7 +352,8 @@ mod tests {
     #[test]
     fn test_options() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
         CSeq: 1\r\n\
         Supported: play.basic, play.scale\r\n\
@@ -383,7 +390,8 @@ mod tests {
     #[test]
     fn test_options_multiline_header() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
 CSeq: 1\r\n\
 Supported: play.basic,\r\n play.scale\r\n\
@@ -407,7 +415,8 @@ REMAINDER"
     #[test]
     fn test_trailing_whitespace() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
 CSeq: 1 \r\n\
 Supported: \tplay.basic,\r\n play.scale\r\n\
@@ -431,7 +440,8 @@ REMAINDER"
     #[test]
     fn test_options_without_uri() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS * RTSP/2.0\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -468,7 +478,8 @@ REMAINDER"
     #[test]
     fn test_options_with_body() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -511,7 +522,8 @@ REMAINDER"
     #[test]
     fn test_options_with_body_without_uri() {
         assert_eq!(
-            request(
+            parse(
+                request,
                 b"OPTIONS * RTSP/2.0\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -554,7 +566,8 @@ REMAINDER"
     #[test]
     fn test_ok() {
         assert_eq!(
-            response(
+            parse(
+                response,
                 b"RTSP/2.0 200 All Good\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -591,7 +604,8 @@ REMAINDER"
     #[test]
     fn test_ok_with_body() {
         assert_eq!(
-            response(
+            parse(
+                response,
                 b"RTSP/2.0 200 All Good\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -634,7 +648,8 @@ REMAINDER"
     #[test]
     fn test_bad_content_length() {
         assert!(matches!(
-            response(
+            parse(
+                response,
                 b"RTSP/2.0 200 All Good\r\n\
 CSeq: 1\r\n\
 Supported: play.basic, play.scale\r\n\
@@ -644,14 +659,15 @@ Content-Length: bad\r\n\
 0123456789\
 REMAINDER"
             ),
-            Err(nom::Err::Failure(_))
+            Err(ErrMode::Cut(_))
         ));
     }
 
     #[test]
     fn test_duplicate_content_length() {
         // Identical duplicates are fine.
-        assert!(response(
+        assert!(parse(
+            response,
             b"RTSP/2.0 200 All Good\r\n\
 Content-Length: 10\r\n\
 Content-Length: 10\r\n\
@@ -663,7 +679,8 @@ REMAINDER"
 
         // Differing duplicates make the message malformed.
         assert!(matches!(
-            response(
+            parse(
+                response,
                 b"RTSP/2.0 200 All Good\r\n\
 Content-Length: 10\r\n\
 Content-Length: 5\r\n\
@@ -671,14 +688,17 @@ Content-Length: 5\r\n\
 0123456789\
 REMAINDER"
             ),
-            Err(nom::Err::Failure(_))
+            Err(ErrMode::Cut(_))
         ));
     }
 
     #[test]
     fn test_data() {
         assert_eq!(
-            data(&[b'$', 12, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, b'a', b'b'][..]),
+            parse(
+                data,
+                &[b'$', 12, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, b'a', b'b'][..]
+            ),
             Ok((
                 &b"ab"[..],
                 DataRef::from_slice(12, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
@@ -689,14 +709,15 @@ REMAINDER"
     #[test]
     fn test_options_with_invalid_content_length() {
         assert!(matches!(
-            request(
+            parse(
+                request,
                 b"OPTIONS rtsp://media.example.com/movie/twister.3gp RTSP/2.0\r\n\
  CSeq: 1\r\n\
  Content-Length: +10\r\n\
  \r\n\
  0123456789"
             ),
-            Err(nom::Err::Failure(_))
+            Err(ErrMode::Cut(_))
         ));
     }
 }

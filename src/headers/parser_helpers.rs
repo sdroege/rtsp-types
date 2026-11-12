@@ -2,54 +2,52 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
-use nom::bytes::complete::take_while;
-use nom::character::complete::space0;
-use nom::character::is_alphanumeric;
-use nom::{Err, IResult, Needed};
 use std::str;
+use winnow::ascii::space0;
+use winnow::combinator::delimited;
+use winnow::error::{ContextError, ErrMode};
+use winnow::prelude::*;
+use winnow::stream::{AsChar, Stream, StreamIsPartial};
+use winnow::token::take_while;
+use winnow::ModalResult;
+use winnow::Parser;
 
 use super::HeaderParseError;
 
-pub(super) fn cond_parser<I, O1, O2, E: nom::error::ParseError<I>, F, G>(
+pub(super) fn backtrack(input: &[u8]) -> ErrMode<ContextError> {
+    ErrMode::Backtrack(ContextError::from_input(&input))
+}
+
+pub(super) fn cond_parser<I, O1, O2, F, G>(
     mut cond: F,
     mut parser: G,
-) -> impl FnMut(I) -> IResult<I, Option<O2>, E>
+) -> impl FnMut(&mut I) -> ModalResult<Option<O2>>
 where
-    F: nom::Parser<I, O1, E>,
-    G: nom::Parser<I, O2, E>,
-    I: Clone,
+    F: Parser<I, O1, ErrMode<ContextError>>,
+    G: Parser<I, O2, ErrMode<ContextError>>,
+    I: Stream,
 {
-    move |input: I| {
-        let (input, res) = match cond.parse(input.clone()) {
-            Ok((input, output)) => Ok((input, Some(output))),
-            Err(Err::Error(_)) => Ok((input, None)),
-            Err(err) => Err(err),
-        }?;
+    move |input: &mut I| {
+        let start = input.checkpoint();
 
-        if res.is_some() {
-            let (input, res) = parser.parse(input)?;
-            Ok((input, Some(res)))
-        } else {
-            Ok((input, None))
+        match cond.parse_next(input) {
+            Ok(_) => parser.parse_next(input).map(Some),
+            Err(ErrMode::Backtrack(_)) => {
+                input.reset(&start);
+                Ok(None)
+            }
+            Err(err) => Err(err),
         }
     }
 }
 
-pub(super) fn trim<I, O, E: nom::error::ParseError<I>, F>(
-    mut parser: F,
-) -> impl FnMut(I) -> IResult<I, O, E>
+pub(super) fn trim<I, O, F>(parser: F) -> impl Parser<I, O, ErrMode<ContextError>>
 where
-    F: nom::Parser<I, O, E>,
-    I: nom::InputTakeAtPosition,
-    <I as nom::InputTakeAtPosition>::Item: nom::AsChar + Clone,
+    F: Parser<I, O, ErrMode<ContextError>>,
+    I: StreamIsPartial + Stream,
+    <I as Stream>::Token: AsChar,
 {
-    move |input: I| {
-        let (input, _) = space0(input)?;
-        let (input, val) = parser.parse(input)?;
-        let (input, _) = space0(input)?;
-
-        Ok((input, val))
-    }
+    delimited(space0, parser, space0)
 }
 
 /// Parse an unsigned integer from a string of ASCII digits.
@@ -115,30 +113,25 @@ pub(crate) fn parse_float(s: &str, allow_negative: bool) -> Result<f64, ()> {
 }
 
 pub(super) fn is_token_char(i: u8) -> bool {
-    is_alphanumeric(i) || b"!#$%&'*+-.^_`|~".contains(&i)
+    i.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&i)
 }
 
-pub(super) fn token(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(is_token_char)(input)
+pub(super) fn token<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
+    take_while(0.., is_token_char).parse_next(input)
 }
 
 pub(super) fn is_rtsp_unreserved_char(i: u8) -> bool {
     // rtsp_unreserved
-    is_alphanumeric(i) || b"$-_.+!*'()".contains(&i)
+    i.is_ascii_alphanumeric() || b"$-_.+!*'()".contains(&i)
 }
 
-pub(super) fn rtsp_unreserved(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    take_while(is_rtsp_unreserved_char)(input)
+pub(super) fn rtsp_unreserved<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
+    take_while(0.., is_rtsp_unreserved_char).parse_next(input)
 }
 
-pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    use std::num::NonZeroUsize;
-
+pub(super) fn quoted_string<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
     if !input.starts_with(b"\"") {
-        return Err(Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        )));
+        return Err(backtrack(input));
     }
 
     let i = &input[1..];
@@ -149,7 +142,8 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
         if o.len() >= 2 && o.starts_with(b"\\") {
             o = &o[2..];
         } else if o.starts_with(b"\\") {
-            return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+            // Trailing backslash, the string can never be closed here.
+            return Err(backtrack(input));
         } else if !o.starts_with(b"\"") {
             o = &o[1..];
         } else {
@@ -160,17 +154,20 @@ pub(super) fn quoted_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
         }
     }
 
-    let (fst, snd) = input.split_at(input.len() - o.len());
     // The input did not contain the closing quote, e.g. it ended in an escaped
-    // quote.
+    // quote. Header parsing operates on complete input, so this is just an
+    // error and not a request for more data.
     if !closed {
-        return Err(Err::Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())));
+        return Err(backtrack(input));
     }
 
+    let (fst, snd) = input.split_at(input.len() - o.len());
     // Must have the starting quote
     assert!(fst.starts_with(b"\""));
 
-    Ok((snd, fst))
+    *input = snd;
+
+    Ok(fst)
 }
 
 /// Splits `s` on `separator`, ignoring separators inside quoted strings.
@@ -281,13 +278,14 @@ mod tests {
 
     #[test]
     fn trim_trims_tabs() {
-        fn value(i: &[u8]) -> IResult<&[u8], &[u8]> {
-            nom::bytes::complete::take_while(|c: u8| c.is_ascii_alphabetic())(i)
+        fn value<'i>(input: &mut &'i [u8]) -> ModalResult<&'i [u8]> {
+            take_while(1.., |c: u8| c.is_ascii_alphabetic()).parse_next(input)
         }
 
-        let (rest, out) = trim(value)(b"\t \tab \t").unwrap();
+        let mut input: &[u8] = b"\t \tab \t";
+        let out = trim(value).parse_next(&mut input).unwrap();
         assert_eq!(out, b"ab");
-        assert!(rest.is_empty());
+        assert!(input.is_empty());
     }
 
     #[test]

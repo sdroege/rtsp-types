@@ -12,7 +12,7 @@ readme = "README.md"
 rust-version = "1.88"
 
 [dependencies]
-nom = "7.0"
+winnow = "1.0.5"
 cookie-factory = "0.3"
 tinyvec = {version = "1.0", features = ["std", "rustc_1_57"]}
 url = "2.0"

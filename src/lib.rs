@@ -118,7 +118,6 @@ pub use message::*;
 // TODO: Maybe make this public at a later time
 mod message_ref;
 pub(crate) use message_ref::*;
-mod nom_extensions;
 mod parser;
 mod serializer;
 
